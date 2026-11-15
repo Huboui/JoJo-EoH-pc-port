@@ -1,0 +1,142 @@
+================================================================================
+  JOJO'S BIZARRE ADVENTURE: EYES OF HEAVEN (CUSA04909) - PC STANDALONE RELEASE
+================================================================================
+Complete User & Multiplayer Setup Guide
+Build Version: 2026 High-Performance Low-End Optimized Edition
+
+--------------------------------------------------------------------------------
+TABLE OF CONTENTS
+--------------------------------------------------------------------------------
+1. Part 1: Game Extraction & Setup (game_data/CUSA04909)
+2. Part 2: Steamworks Requirements & Controller Setup
+3. Part 3: Online Multiplayer & Steam Invites Guide
+4. Part 4: Low-End PC Hardware Optimizations & OptiScaler (FSR 3.1 / XeSS / DLSS)
+5. Troubleshooting & FAQ
+
+================================================================================
+PART 1: GAME EXTRACTION & SETUP (game_data/CUSA04909)
+================================================================================
+Due to legal and copyright compliance, no copyrighted game assets (.pkg, eboot.bin,
+or .cpk archives) are distributed with this software. You must supply your own
+legally dumped copy of JoJo's Bizarre Adventure: Eyes of Heaven (Title ID: CUSA04909).
+
+Option A — Automatic Extraction via pkg_extractor.exe:
+  1. Simply drag and drop your dumped PS4 game PKG file (e.g., CUSA04909.pkg)
+     directly onto "pkg_extractor.exe".
+  2. The tool will parse the PKG header, extract system files (param.sfo, icon0.png,
+     trophy files) into "game_data/CUSA04909/", and verify your game files.
+  3. If your PKG has an unencrypted PFS partition, it extracts the game files
+     automatically.
+
+Option B — Manual Placement (ItemzFlow / GoldHEN Decrypted Dump):
+  If you dumped your game directly from your jailbroken PS4 console using ItemzFlow
+  or GoldHEN game dumper:
+  1. Open the "game_data/CUSA04909" folder inside this directory.
+  2. Copy your dumped game files so the directory structure looks exactly like this:
+
+     game_data/
+     └── CUSA04909/
+         ├── eboot.bin                     (Main PS4 decrypted executable)
+         ├── sce_sys/
+         │   ├── param.sfo                 (System metadata)
+         │   ├── icon0.png                 (Game cover icon)
+         │   ├── pic0.png                  (Background wallpaper)
+         │   └── trophy/
+         │       └── trophy00.trp          (Trophy definitions)
+         ├── data.cpk                      (Core game assets & models)
+         ├── movie.cpk                     (Story cutscenes)
+         └── sound.cpk                     (Voice & sound archives)
+
+  3. Any DLC packages (addcont folders) placed inside "game_data/CUSA04909" will
+     be automatically mounted and loaded at boot!
+
+================================================================================
+PART 2: STEAMWORKS REQUIREMENTS & CONTROLLER SETUP
+================================================================================
+1. Steam Requirement:
+   - STEAM MUST BE RUNNING in the background before launching the game.
+   - The game uses Steamworks SDK HLE integration for zero-latency peer-to-peer
+     networking, Steam friend invitations, and lobby matchmaking.
+   - "steam_appid.txt" is pre-configured with App ID 480 (Spacewar test network),
+     allowing anyone with a standard Steam account to play together online.
+   - If Steam is closed, the game will display a reminder popup and safely exit.
+
+2. Controller & Gamepad Support (Xbox / PlayStation / Steam Deck):
+   - Full native plug-and-play support for Xbox (Series X/S, One, 360 via XInput)
+     and PlayStation (DualShock 4, DualSense via SDL HID).
+   - Hotplugging supported: plug in your controller anytime.
+   - Xbox View/Select button is mapped to the PS4 Touchpad Click
+     (SCE_PAD_BUTTON_TOUCH_PAD) for full access to battle resets and menus.
+   - To configure Keyboard & Mouse controls or customize controller bindings,
+     switch to the "Controls & Keybindings" tab inside the Pre-Game Launcher.
+
+================================================================================
+PART 3: ONLINE MULTIPLAYER & STEAM INVITES GUIDE
+================================================================================
+Online multiplayer in this standalone build routes all matchmaking and network
+packets through Valve's Steam Datagram Relay (SDR) over secure virtual IPs (10.0.0.x).
+
+How to Host a Match and Invite Friends:
+  1. Ensure you and your friend both have Steam running.
+  2. Launch "JoJo EoH.exe" and click "Launch Game".
+  3. In the game main menu, select "Online" -> "Player Match" (or 1v1 / 2v2).
+  4. Select "Host Room" / "Create Session".
+  5. The Steam Game Overlay invitation window will automatically pop up!
+     Select your friend from the Steam overlay list and click "Send Invite".
+     (You can also press Shift+Tab at any time to invite friends manually).
+  6. Once your friend accepts the invite, they will automatically join your room.
+  7. Select your characters and battle with smooth 60 FPS P2P rollback networking!
+
+How to Join a Friend's Match:
+  1. Have Steam running on your computer.
+  2. When your friend sends you an invite, accept it through the Steam chat popup
+     or Steam Friends list.
+  3. The game will automatically join the host's lobby and enter the match.
+
+================================================================================
+PART 4: LOW-END PC OPTIMIZATIONS & OPTISCALER (FSR 3.1 / XeSS / DLSS)
+================================================================================
+This release includes hardware optimizations designed to run smoothly at 60 FPS
+even on weaker systems, older laptops, and integrated graphics (Intel Iris / AMD Vega):
+
+1. Pre-Game Launcher Display & Graphics Tab:
+   - Render Resolution Scaler:
+     * 720p (50% scale): Recommended for integrated GPUs and older PCs.
+     * 900p (75% scale): Great balance of performance and visual clarity.
+     * 1080p (Native): Standard full HD.
+     * 1440p / 4K: Ultra-crisp high-resolution rendering.
+
+2. OptiScaler Hardware Upscaling:
+   - OptiScaler integrates directly into the Vulkan swapchain proxy pipeline:
+     * FSR 3.1 / FSR 4: High-quality temporal upscaling for all GPUs (AMD, Intel, Nvidia).
+     * Intel XeSS: AI-enhanced spatial and temporal upscaling.
+     * NVIDIA DLSS: Tensor-core accelerated reconstruction for GeForce RTX cards.
+   - Select your preferred Upscaler Engine and Quality Mode (Quality, Balanced,
+     Performance, Ultra Performance) in the launcher before launching.
+
+3. Low-End Hardware Optimizations (Zero Content Cut):
+   - Asynchronous Disk Pipeline Caching: Pre-caches compiled Vulkan SPIR-V pipelines
+     to disk to eliminate micro-stutter during Dual Heat Attacks and stage loads.
+   - Vulkan VRAM Defragmentation: Automatically reclaims and pools staging buffers
+     to minimize VRAM overhead on 2GB and 4GB cards.
+   - High CPU Process Priority: Configures the Windows scheduler to prioritize
+     game worker threads for maximum frame pacing stability.
+
+================================================================================
+TROUBLESHOOTING & FAQ
+================================================================================
+Q: Game exits immediately with a popup saying "Steam must be running".
+A: Launch the Steam desktop client, log in, and then run JoJo EoH.exe.
+
+Q: Controller buttons aren't responding.
+A: Ensure your controller is recognized by Windows. In the Launcher GUI, check the
+   "Controls & Keybindings" tab and confirm "Gamepad" is selected as the Active
+   Input Device.
+
+Q: Game stays on a black screen or crashes on boot.
+A: Verify that "eboot.bin" exists in "game_data/CUSA04909/eboot.bin". Run
+   "pkg_extractor.exe" to perform an automatic health-check on your files.
+
+================================================================================
+Enjoy JoJo's Bizarre Adventure: Eyes of Heaven on PC!
+================================================================================

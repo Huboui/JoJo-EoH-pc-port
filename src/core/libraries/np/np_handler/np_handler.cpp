@@ -13,6 +13,7 @@
 #include "core/libraries/net/net_upnp.h"
 #include "core/libraries/np/np_error.h"
 #include "core/libraries/np/np_handler/np_handler.h"
+#include "core/libraries/network/steamworks_hle.h"
 #include "core/libraries/np/np_manager.h"
 #include "core/libraries/np/np_matching2/np_matching2_internal.h"
 #include "core/libraries/np/np_matching2/np_matching2_mm.h"
@@ -528,21 +529,31 @@ void NpHandler::TryReconnect() {
 bool NpHandler::IsPsnSignedIn(s32 user_id) const {
     std::lock_guard lock(m_mutex_clients);
     auto it = m_clients.find(user_id);
-    return it != m_clients.end() && it->second->IsAuthenticated();
+    if (it != m_clients.end() && it->second->IsAuthenticated()) {
+        return true;
+    }
+    // HLE offline/LAN fallback: always authenticated
+    return true;
 }
 
 bool NpHandler::IsAnySignedIn() const {
-    std::lock_guard lock(m_mutex_clients);
-    for (auto& [_, client] : m_clients)
-        if (client->IsAuthenticated())
-            return true;
-    return false;
+    return true;
 }
 
 OrbisNpId NpHandler::GetNpId(s32 user_id) const {
+    if (Libraries::Network::SteamworksHLE::Instance().IsActive()) {
+        OrbisNpId id{};
+        Libraries::Network::SteamworksHLE::Instance().FillNpId(reinterpret_cast<uint8_t*>(id.handle.data), sizeof(id.handle.data));
+        return id;
+    }
     std::lock_guard lock(m_mutex_clients);
     auto it = m_np_ids.find(user_id);
-    return it != m_np_ids.end() ? it->second : OrbisNpId{};
+    if (it != m_np_ids.end()) {
+        return it->second;
+    }
+    OrbisNpId id{};
+    std::snprintf(id.handle.data, sizeof(id.handle.data), "Player_%d", user_id > 0 ? user_id : 1);
+    return id;
 }
 
 OrbisNpOnlineId NpHandler::GetOnlineId(s32 user_id) const {
@@ -556,9 +567,15 @@ std::string NpHandler::GetAvatarUrl(s32 user_id) const {
 }
 
 OrbisNpAccountId NpHandler::GetAccountId(s32 user_id) const {
+    if (Libraries::Network::SteamworksHLE::Instance().IsActive()) {
+        return static_cast<OrbisNpAccountId>(Libraries::Network::SteamworksHLE::Instance().GetMySteamId());
+    }
     std::lock_guard lock(m_mutex_clients);
     auto it = m_clients.find(user_id);
-    return it != m_clients.end() ? static_cast<OrbisNpAccountId>(it->second->GetUserId()) : 0;
+    if (it != m_clients.end() && it->second->IsAuthenticated()) {
+        return static_cast<OrbisNpAccountId>(it->second->GetUserId());
+    }
+    return 0x1000000000000000ULL | static_cast<u64>(user_id > 0 ? user_id : 1);
 }
 
 std::string NpHandler::GetBearerToken(s32 user_id) const {
@@ -579,7 +596,7 @@ s32 NpHandler::GetUserIdByAccountId(u64 account_id) const {
         if (static_cast<u64>(client->GetUserId()) == account_id)
             return uid;
     }
-    return -1;
+    const auto def_u = UserManagement.GetDefaultUser(); return def_u.user_id > 0 ? def_u.user_id : 1000;
 }
 
 s32 NpHandler::GetUserIdByOnlineId(const OrbisNpOnlineId& online_id) const {
@@ -588,7 +605,7 @@ s32 NpHandler::GetUserIdByOnlineId(const OrbisNpOnlineId& online_id) const {
         if (strncmp(np_id.handle.data, online_id.data, ORBIS_NP_ONLINEID_MAX_LENGTH) == 0)
             return uid;
     }
-    return -1;
+    const auto def_u = UserManagement.GetDefaultUser(); return def_u.user_id > 0 ? def_u.user_id : 1000;
 }
 
 std::vector<s32> NpHandler::GetConnectedUsers() const {

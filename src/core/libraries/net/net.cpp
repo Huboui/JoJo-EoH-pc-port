@@ -36,6 +36,7 @@
 #include "core/libraries/net/net_p2p_ioctl.h"
 #include "core/libraries/net/net_resolver.h"
 #include "core/libraries/net/net_translate.h"
+#include "core/libraries/network/steamworks_hle.h"
 #include "core/net/guest_net.h"
 #include "core/net/p2p_codec.h"
 #include "core/net/p2p_tcp.h"
@@ -1994,6 +1995,23 @@ static s32 sceNetRecvfromImpl(OrbisNetId s, void* buf, u64 len, s32 flags, Orbis
         }
         return Return(r);
     }
+    if (Libraries::Network::SteamworksHLE::Instance().IsActive()) {
+        uint32_t steam_ip = 0;
+        uint16_t steam_port = 0;
+        int recvd = Libraries::Network::SteamworksHLE::Instance().RecvFrom(buf, len, &steam_ip, &steam_port);
+        if (recvd > 0) {
+            if (addr != nullptr && paddrlen != nullptr) {
+                sockaddr_in sin{};
+                sin.sin_family = AF_INET;
+                sin.sin_addr.s_addr = steam_ip;
+                sin.sin_port = Libraries::Net::sceNetHtons(steam_port);
+                size_t to_copy = std::min<size_t>(static_cast<size_t>(*paddrlen), sizeof(sockaddr_in));
+                std::memcpy(addr, &sin, to_copy);
+                *paddrlen = sizeof(sockaddr_in);
+            }
+            return recvd;
+        }
+    }
     sockaddr_storage host{};
     socklen_t host_len = sizeof(host);
     const auto r = Core::Net::SocketRecvFrom(
@@ -2290,6 +2308,20 @@ static s32 sceNetSendtoImpl(OrbisNetId s, const void* buf, u64 len, s32 flags,
         return Return(Core::Net::P2PSocketSendTo(s, buf, static_cast<size_t>(len), msg.dontwait,
                                                  addr ? &to : nullptr, to_vport,
                                                  {msg.crypto, msg.signature}));
+    }
+    if (addr != nullptr && addrlen >= sizeof(sockaddr_in) && Libraries::Network::SteamworksHLE::Instance().IsActive()) {
+        const auto* sin = reinterpret_cast<const sockaddr_in*>(addr);
+        if (sin->sin_family == AF_INET) {
+            uint32_t dest_ip = sin->sin_addr.s_addr;
+            uint16_t dest_port = ntohs(sin->sin_port);
+            if (Libraries::Network::SteamworksHLE::Instance().IsVirtualPeerIp(dest_ip) ||
+                Libraries::Network::SteamworksHLE::Instance().HasActivePeer()) {
+                int sent = Libraries::Network::SteamworksHLE::Instance().SendTo(buf, len, dest_ip, dest_port);
+                if (sent >= 0) {
+                    return sent;
+                }
+            }
+        }
     }
     sockaddr_storage host{};
     socklen_t host_len = 0;

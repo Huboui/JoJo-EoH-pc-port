@@ -21,11 +21,15 @@ s32 NpHandler::RecordScore(s32 user_id, s32 service_label, u32 boardId, s32 pcId
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            LOG_WARNING(NpHandler, "user_id={} not connected", user_id);
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (req) {
+            req->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     if (!client->IsAuthenticated()) {
         LOG_WARNING(NpHandler, "user_id={} not authenticated", user_id);
@@ -87,11 +91,15 @@ s32 NpHandler::RecordGameData(s32 user_id, s32 service_label, u32 boardId, s32 p
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            LOG_WARNING(NpHandler, "user_id={} not connected", user_id);
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (req) {
+            req->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     if (!client->IsAuthenticated()) {
         LOG_WARNING(NpHandler, "user_id={} not authenticated", user_id);
@@ -147,11 +155,15 @@ s32 NpHandler::GetGameData(s32 user_id, s32 service_label, u32 boardId, const st
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            LOG_WARNING(NpHandler, "user_id={} not connected", user_id);
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (req) {
+            req->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     if (!client->IsAuthenticated()) {
         LOG_WARNING(NpHandler, "user_id={} not authenticated", user_id);
@@ -207,11 +219,15 @@ s32 NpHandler::GetGameDataByAccountId(s32 user_id, s32 service_label, u32 boardI
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            LOG_WARNING(NpHandler, "user_id={} not connected", user_id);
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (req) {
+            req->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     if (!client->IsAuthenticated()) {
         LOG_WARNING(NpHandler, "user_id={} not authenticated", user_id);
@@ -268,11 +284,15 @@ s32 NpHandler::GetBoardInfo(s32 user_id, s32 service_label, u32 boardId,
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            LOG_WARNING(NpHandler, "user_id={} not connected", user_id);
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (req) {
+            req->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     if (!client->IsAuthenticated()) {
         LOG_WARNING(NpHandler, "user_id={} not authenticated", user_id);
@@ -327,11 +347,15 @@ s32 NpHandler::GetRankingByNpId(s32 user_id, s32 service_label, u32 boardId,
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            LOG_WARNING(NpHandler, "user_id={} not connected", user_id);
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (req) {
+            req->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     if (!client->IsAuthenticated()) {
         LOG_WARNING(NpHandler, "user_id={} not authenticated", user_id);
@@ -400,11 +424,15 @@ s32 NpHandler::GetRankingByRange(s32 user_id, s32 service_label, u32 boardId, u3
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            LOG_WARNING(NpHandler, "user_id={} not connected", user_id);
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (req) {
+            req->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     if (!client->IsAuthenticated()) {
         LOG_WARNING(NpHandler, "user_id={} not authenticated", user_id);
@@ -469,11 +497,15 @@ s32 NpHandler::GetRankingByRangeA(s32 user_id, s32 service_label, u32 boardId, u
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            LOG_WARNING(NpHandler, "user_id={} not connected", user_id);
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (req) {
+            req->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     if (!client->IsAuthenticated()) {
         LOG_WARNING(NpHandler, "user_id={} not authenticated", user_id);
@@ -540,11 +572,15 @@ s32 NpHandler::GetRankingByAccountId(s32 user_id, s32 service_label, u32 boardId
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            LOG_WARNING(NpHandler, "user_id={} not connected", user_id);
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (req) {
+            req->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     if (!client->IsAuthenticated()) {
         return ORBIS_NP_COMMUNITY_ERROR_NO_LOGIN;
@@ -613,11 +649,15 @@ s32 NpHandler::GetFriendsRanking(s32 user_id, s32 service_label, u32 boardId, bo
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            LOG_WARNING(NpHandler, "user_id={} not connected", user_id);
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (req) {
+            req->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     if (!client->IsAuthenticated()) {
         LOG_WARNING(NpHandler, "user_id={} not authenticated", user_id);
@@ -684,11 +724,15 @@ s32 NpHandler::GetFriendsRankingA(s32 user_id, s32 service_label, u32 boardId, b
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            LOG_WARNING(NpHandler, "user_id={} not connected", user_id);
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (req) {
+            req->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     if (!client->IsAuthenticated()) {
         LOG_WARNING(NpHandler, "user_id={} not authenticated", user_id);

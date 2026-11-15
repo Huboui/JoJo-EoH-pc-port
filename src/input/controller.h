@@ -98,6 +98,7 @@ public:
     void UpdateGyro(const float gyro[3]);
     void UpdateAcceleration(const float acceleration[3]);
     void PollState();
+    void PollDirectHardware();
     void ResetOrientation();
     void SetLightBarRGB(u8 const r, u8 const g, u8 const b);
     void SetLightBarRGB(Colour const c);
@@ -128,18 +129,20 @@ private:
 };
 
 class GameControllers {
-    std::array<GameController*, 5> controllers;
+    std::array<std::unique_ptr<GameController>, 5> controllers;
 
 public:
-    GameControllers()
-        : controllers({new GameController(), new GameController(), new GameController(),
-                       new GameController(), new GameController()}) {};
+    GameControllers() {
+        for (auto& c : controllers) {
+            c = std::make_unique<GameController>();
+        }
+    }
     virtual ~GameControllers() = default;
     GameController* operator[](const size_t& i) const {
         if (i > 4) {
             UNREACHABLE_MSG("Index {} is out of bounds for GameControllers!", i);
         }
-        return controllers[i];
+        return controllers[i].get();
     }
     void TryOpenSDLControllers();
     u8 GetGamepadIndexFromJoystickId(SDL_JoystickID id);

@@ -230,12 +230,8 @@ int PS4_SYSV_ABI sceNpMatching2ContextStart(OrbisNpMatching2ContextId ctxId, u64
         LOG_ERROR(Lib_NpMatching2, "not initialized");
         return ORBIS_NP_MATCHING2_ERROR_NOT_INITIALIZED;
     }
-    if (!EmulatorSettings.IsConnectedToNetwork() || !EmulatorSettings.IsShadNetEnabled()) {
-        // error confirmed with a real console disconnected from the internet
-        constexpr int ORBIS_NET_ERROR_RESOLVER_ETIMEDOUT = 0x804101e2;
-        LOG_ERROR(Lib_NpMatching2, "not connected to network");
-        return ORBIS_NET_ERROR_RESOLVER_ETIMEDOUT;
-    }
+    // HLE: allow matching2 context start in local/UDP mode
+    LOG_INFO(Lib_NpMatching2, "Matching2 context start allowed for HLE session");
 
     const s32 rc = NpHandler::GetInstance().GetMatching2ContextManager().Start(ctxId);
     if (rc != ORBIS_OK) {
@@ -345,6 +341,15 @@ int PS4_SYSV_ABI sceNpMatching2SetDefaultRequestOptParam(
     ctx->default_request_callback = requestOpt->callback;
     ctx->default_request_callback_arg = requestOpt->arg;
 
+    return ORBIS_OK;
+}
+
+int PS4_SYSV_ABI sceNpMatching2CreateServerContext(OrbisNpMatching2ContextId ctxId,
+                                                  OrbisNpMatching2ServerId* serverId) {
+    LOG_INFO(Lib_NpMatching2, "called, ctxId = {}", ctxId);
+    if (serverId) {
+        *serverId = 1;
+    }
     return ORBIS_OK;
 }
 

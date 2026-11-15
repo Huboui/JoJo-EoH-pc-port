@@ -28,7 +28,9 @@ extern void assert_fail_debug_msg(const char* msg);
     constexpr ImVec2(float _v) : x(_v), y(_v) {}
 
 #define IM_VEC4_CLASS_EXTRA                                                                        \
-    constexpr ImVec4(float _v) : x(_v), y(_v), z(_v), w(_v) {}
+    explicit constexpr ImVec4(float _v) : x(_v), y(_v), z(_v), w(_v) {}
+
+
 
 namespace ImGui {
 struct Texture;

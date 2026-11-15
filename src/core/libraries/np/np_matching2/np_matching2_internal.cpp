@@ -11,14 +11,53 @@
 
 #include "common/logging/log.h"
 #include "common/thread.h"
+#include "core/libraries/kernel/memory.h"
 #include "core/libraries/net/net.h"
 #include "core/libraries/np/np_common.h"
 #include "core/libraries/np/np_error.h"
 #include "core/libraries/np/np_handler/np_handler.h"
+#include "core/libraries/np/np_manager.h"
 #include "core/libraries/np/np_matching2/np_matching2_internal.h"
 #include "shadnet.pb.h"
 
 namespace Libraries::Np::NpMatching2 {
+
+void* GuestMemoryPool::Allocate(size_t size, size_t alignment) {
+    static std::mutex s_mutex;
+    std::lock_guard lock(s_mutex);
+    static void* s_base = nullptr;
+    static size_t s_offset = 0;
+    constexpr size_t TOTAL_POOL_SIZE = 8 * 1024 * 1024; // 8MB
+
+    if (!s_base) {
+        void* mapped = nullptr;
+        s32 res = Libraries::Kernel::sceKernelMapFlexibleMemory(&mapped, TOTAL_POOL_SIZE,
+                                                               Libraries::Kernel::ORBIS_KERNEL_PROT_CPU_RW, 0);
+        if (res >= 0 && mapped != nullptr) {
+            s_base = mapped;
+            LOG_INFO(Lib_NpMatching2, "[GuestMemoryPool] Mapped {} MB guest flexible memory at {}",
+                     TOTAL_POOL_SIZE / (1024 * 1024), fmt::ptr(s_base));
+        } else {
+            LOG_ERROR(Lib_NpMatching2, "[GuestMemoryPool] sceKernelMapFlexibleMemory failed: {:#x}", res);
+        }
+    }
+
+    if (!s_base) {
+        static struct alignas(16) FallbackBuf {
+            uint8_t data[1024 * 1024];
+        } s_fallback;
+        s_base = s_fallback.data;
+    }
+
+    size_t aligned_offset = (s_offset + alignment - 1) & ~(alignment - 1);
+    if (aligned_offset + size > TOTAL_POOL_SIZE) {
+        aligned_offset = 0;
+    }
+    void* ptr = static_cast<char*>(s_base) + aligned_offset;
+    s_offset = aligned_offset + size;
+    std::memset(ptr, 0, size);
+    return ptr;
+}
 
 namespace {
 
@@ -144,10 +183,10 @@ void BuildCreateJoinRoomPayloadCommon(ContextObject& ctx, CallbackPayload& p,
     room.openPublicSlots = static_cast<u16>(rd.open_public_slots());
     room.openPrivateSlots = static_cast<u16>(rd.open_private_slots());
     room.maxSlot = static_cast<u16>(rd.max_slot());
-    room.serverId = static_cast<OrbisNpMatching2ServerId>(rd.server_id());
-    room.worldId = rd.world_id();
-    room.lobbyId = rd.lobby_id();
-    room.roomId = rd.room_id();
+    room.serverId = static_cast<OrbisNpMatching2ServerId>(rd.server_id() != 0 ? rd.server_id() : 1);
+    room.worldId = rd.world_id() != 0 ? rd.world_id() : 1;
+    room.lobbyId = static_cast<OrbisNpMatching2LobbyId>(rd.lobby_id());
+    room.roomId = rd.room_id() != 0 ? rd.room_id() : 1;
     room.passwdSlotMask = rd.passwd_slot_mask();
     room.joinedSlotMask = rd.joined_slot_mask();
     room.flags = rd.flags();
@@ -307,23 +346,77 @@ void* BuildCreateJoinRoomPayload(ContextObject& ctx, CallbackPayload& p,
             AppendMemberBinAttrs(p, m, dst.roomMemberBinAttrInternalNum);
     }
 
-    p.create_join_response = std::make_unique<OrbisNpMatching2CreateJoinRoomResponse>();
-    auto& out = *p.create_join_response;
-    out.roomData = p.room_data.get();
-    out.members.members = p.member_data.empty() ? nullptr : p.member_data.data();
-    out.members.membersNum = p.member_data.size();
-    out.members.me = nullptr;
-    out.members.owner = nullptr;
-    for (auto& md : p.member_data) {
-        if (md.memberId == static_cast<OrbisNpMatching2RoomMemberId>(resp.me_member_id())) {
-            out.members.me = &md;
+    // Allocate in PS4 Guest Memory space (< 0x800000000000)
+    auto* guest_resp = GuestMemoryPool::Allocate<OrbisNpMatching2CreateJoinRoomResponse>();
+    auto* guest_room = GuestMemoryPool::Allocate<OrbisNpMatching2RoomDataInternal>();
+    *guest_room = *p.room_data;
+
+    if (!p.room_groups.empty()) {
+        auto* g_groups = GuestMemoryPool::Allocate<OrbisNpMatching2RoomGroup>(p.room_groups.size());
+        std::memcpy(g_groups, p.room_groups.data(), sizeof(OrbisNpMatching2RoomGroup) * p.room_groups.size());
+        guest_room->roomGroup = g_groups;
+    } else {
+        guest_room->roomGroup = nullptr;
+    }
+
+    if (!p.room_bin_attrs.empty()) {
+        auto* g_attrs = GuestMemoryPool::Allocate<OrbisNpMatching2RoomBinAttrInternal>(p.room_bin_attrs.size());
+        for (size_t i = 0; i < p.room_bin_attrs.size(); ++i) {
+            g_attrs[i] = p.room_bin_attrs[i];
+            if (p.room_bin_attrs[i].binAttr.data && p.room_bin_attrs[i].binAttr.dataSize > 0) {
+                void* g_data = GuestMemoryPool::Allocate(p.room_bin_attrs[i].binAttr.dataSize);
+                std::memcpy(g_data, p.room_bin_attrs[i].binAttr.data, p.room_bin_attrs[i].binAttr.dataSize);
+                g_attrs[i].binAttr.data = static_cast<u8*>(g_data);
+            }
         }
-        if (md.memberId == static_cast<OrbisNpMatching2RoomMemberId>(resp.owner_member_id())) {
-            out.members.owner = &md;
+        guest_room->internalBinAttr = g_attrs;
+    } else {
+        guest_room->internalBinAttr = nullptr;
+    }
+
+    OrbisNpMatching2RoomMemberDataInternal* guest_members = nullptr;
+    if (member_count > 0) {
+        guest_members = GuestMemoryPool::Allocate<OrbisNpMatching2RoomMemberDataInternal>(member_count);
+        for (int i = 0; i < member_count; ++i) {
+            guest_members[i] = p.member_data[i];
+            guest_members[i].next = (i + 1 < member_count) ? &guest_members[i + 1] : nullptr;
+            if (guest_members[i].roomMemberBinAttrInternal && guest_members[i].roomMemberBinAttrInternalNum > 0) {
+                auto* g_mattrs = GuestMemoryPool::Allocate<OrbisNpMatching2RoomMemberBinAttrInternal>(
+                    guest_members[i].roomMemberBinAttrInternalNum);
+                for (size_t k = 0; k < guest_members[i].roomMemberBinAttrInternalNum; ++k) {
+                    g_mattrs[k] = guest_members[i].roomMemberBinAttrInternal[k];
+                    if (g_mattrs[k].binAttr.data && g_mattrs[k].binAttr.dataSize > 0) {
+                        void* g_data = GuestMemoryPool::Allocate(g_mattrs[k].binAttr.dataSize);
+                        std::memcpy(g_data, g_mattrs[k].binAttr.data, g_mattrs[k].binAttr.dataSize);
+                        g_mattrs[k].binAttr.data = static_cast<u8*>(g_data);
+                    }
+                }
+                guest_members[i].roomMemberBinAttrInternal = g_mattrs;
+            }
         }
     }
 
-    p.request_data = p.create_join_response.get();
+    guest_resp->roomData = guest_room;
+    guest_resp->members.members = guest_members;
+    guest_resp->members.membersNum = member_count;
+    guest_resp->members.me = nullptr;
+    guest_resp->members.owner = nullptr;
+    for (int i = 0; i < member_count; ++i) {
+        if (guest_members[i].memberId == static_cast<OrbisNpMatching2RoomMemberId>(resp.me_member_id())) {
+            guest_resp->members.me = &guest_members[i];
+        }
+        if (guest_members[i].memberId == static_cast<OrbisNpMatching2RoomMemberId>(resp.owner_member_id())) {
+            guest_resp->members.owner = &guest_members[i];
+        }
+    }
+    if (!guest_resp->members.me && member_count > 0) {
+        guest_resp->members.me = &guest_members[0];
+    }
+    if (!guest_resp->members.owner && member_count > 0) {
+        guest_resp->members.owner = &guest_members[0];
+    }
+
+    p.request_data = guest_resp;
     return p.request_data;
 }
 
@@ -355,23 +448,77 @@ void* BuildCreateJoinRoomPayloadA(ContextObject& ctx, CallbackPayload& p,
         dst.roomMemberInternalBinAttr = AppendMemberBinAttrs(p, m, dst.roomMemberInternalBinAttrs);
     }
 
-    p.create_join_response_a = std::make_unique<OrbisNpMatching2CreateJoinRoomResponseA>();
-    auto& out = *p.create_join_response_a;
-    out.roomData = p.room_data.get();
-    out.members.members = p.member_data_a.empty() ? nullptr : p.member_data_a.data();
-    out.members.membersNum = p.member_data_a.size();
-    out.members.me = nullptr;
-    out.members.owner = nullptr;
-    for (auto& md : p.member_data_a) {
-        if (md.memberId == static_cast<OrbisNpMatching2RoomMemberId>(resp.me_member_id())) {
-            out.members.me = &md;
+    // Allocate in PS4 Guest Memory space (< 0x800000000000)
+    auto* guest_resp = GuestMemoryPool::Allocate<OrbisNpMatching2CreateJoinRoomResponseA>();
+    auto* guest_room = GuestMemoryPool::Allocate<OrbisNpMatching2RoomDataInternal>();
+    *guest_room = *p.room_data;
+
+    if (!p.room_groups.empty()) {
+        auto* g_groups = GuestMemoryPool::Allocate<OrbisNpMatching2RoomGroup>(p.room_groups.size());
+        std::memcpy(g_groups, p.room_groups.data(), sizeof(OrbisNpMatching2RoomGroup) * p.room_groups.size());
+        guest_room->roomGroup = g_groups;
+    } else {
+        guest_room->roomGroup = nullptr;
+    }
+
+    if (!p.room_bin_attrs.empty()) {
+        auto* g_attrs = GuestMemoryPool::Allocate<OrbisNpMatching2RoomBinAttrInternal>(p.room_bin_attrs.size());
+        for (size_t i = 0; i < p.room_bin_attrs.size(); ++i) {
+            g_attrs[i] = p.room_bin_attrs[i];
+            if (p.room_bin_attrs[i].binAttr.data && p.room_bin_attrs[i].binAttr.dataSize > 0) {
+                void* g_data = GuestMemoryPool::Allocate(p.room_bin_attrs[i].binAttr.dataSize);
+                std::memcpy(g_data, p.room_bin_attrs[i].binAttr.data, p.room_bin_attrs[i].binAttr.dataSize);
+                g_attrs[i].binAttr.data = static_cast<u8*>(g_data);
+            }
         }
-        if (md.memberId == static_cast<OrbisNpMatching2RoomMemberId>(resp.owner_member_id())) {
-            out.members.owner = &md;
+        guest_room->internalBinAttr = g_attrs;
+    } else {
+        guest_room->internalBinAttr = nullptr;
+    }
+
+    OrbisNpMatching2RoomMemberDataInternalA* guest_members = nullptr;
+    if (member_count > 0) {
+        guest_members = GuestMemoryPool::Allocate<OrbisNpMatching2RoomMemberDataInternalA>(member_count);
+        for (int i = 0; i < member_count; ++i) {
+            guest_members[i] = p.member_data_a[i];
+            guest_members[i].next = (i + 1 < member_count) ? &guest_members[i + 1] : nullptr;
+            if (guest_members[i].roomMemberInternalBinAttr && guest_members[i].roomMemberInternalBinAttrs > 0) {
+                auto* g_mattrs = GuestMemoryPool::Allocate<OrbisNpMatching2RoomMemberBinAttrInternal>(
+                    guest_members[i].roomMemberInternalBinAttrs);
+                for (size_t k = 0; k < guest_members[i].roomMemberInternalBinAttrs; ++k) {
+                    g_mattrs[k] = guest_members[i].roomMemberInternalBinAttr[k];
+                    if (g_mattrs[k].binAttr.data && g_mattrs[k].binAttr.dataSize > 0) {
+                        void* g_data = GuestMemoryPool::Allocate(g_mattrs[k].binAttr.dataSize);
+                        std::memcpy(g_data, g_mattrs[k].binAttr.data, g_mattrs[k].binAttr.dataSize);
+                        g_mattrs[k].binAttr.data = static_cast<u8*>(g_data);
+                    }
+                }
+                guest_members[i].roomMemberInternalBinAttr = g_mattrs;
+            }
         }
     }
 
-    p.request_data = p.create_join_response_a.get();
+    guest_resp->roomData = guest_room;
+    guest_resp->members.members = guest_members;
+    guest_resp->members.membersNum = member_count;
+    guest_resp->members.me = nullptr;
+    guest_resp->members.owner = nullptr;
+    for (int i = 0; i < member_count; ++i) {
+        if (guest_members[i].memberId == static_cast<OrbisNpMatching2RoomMemberId>(resp.me_member_id())) {
+            guest_resp->members.me = &guest_members[i];
+        }
+        if (guest_members[i].memberId == static_cast<OrbisNpMatching2RoomMemberId>(resp.owner_member_id())) {
+            guest_resp->members.owner = &guest_members[i];
+        }
+    }
+    if (!guest_resp->members.me && member_count > 0) {
+        guest_resp->members.me = &guest_members[0];
+    }
+    if (!guest_resp->members.owner && member_count > 0) {
+        guest_resp->members.owner = &guest_members[0];
+    }
+
+    p.request_data = guest_resp;
     return p.request_data;
 }
 
@@ -379,10 +526,10 @@ void* BuildLeaveRoomPayload(ContextObject& ctx, CallbackPayload& p,
                             const shadnet::LeaveRoomReply& resp) {
     p.Reset();
 
-    p.leave_room_response = std::make_unique<OrbisNpMatching2LeaveRoomResponse>();
-    p.leave_room_response->roomId = static_cast<OrbisNpMatching2RoomId>(resp.room_id());
+    auto* guest_resp = GuestMemoryPool::Allocate<OrbisNpMatching2LeaveRoomResponse>();
+    guest_resp->roomId = static_cast<OrbisNpMatching2RoomId>(resp.room_id());
 
-    if (ctx.room_id == p.leave_room_response->roomId) {
+    if (ctx.room_id == guest_resp->roomId) {
         auto cache = NpHandler::GetInstance().LockMatching2Cache(ctx.ctx_id);
         cache->rooms.erase(ctx.room_id);
         cache->peers.clear();
@@ -391,7 +538,7 @@ void* BuildLeaveRoomPayload(ContextObject& ctx, CallbackPayload& p,
         ctx.is_room_owner = false;
     }
 
-    p.request_data = p.leave_room_response.get();
+    p.request_data = guest_resp;
     return p.request_data;
 }
 
@@ -411,15 +558,21 @@ void* BuildGetWorldInfoListPayload(ContextObject& ctx, CallbackPayload& p,
         dst.roomsNum = w.rooms_num();
         dst.roomMembersNum = w.room_members_num();
     }
-    for (size_t i = 0; i + 1 < p.world_list.size(); ++i) {
-        p.world_list[i].next = &p.world_list[i + 1];
+
+    auto* guest_resp = GuestMemoryPool::Allocate<OrbisNpMatching2GetWorldInfoListResponse>();
+    guest_resp->worldNum = p.world_list.size();
+    if (!p.world_list.empty()) {
+        auto* guest_worlds = GuestMemoryPool::Allocate<OrbisNpMatching2World>(p.world_list.size());
+        for (size_t i = 0; i < p.world_list.size(); ++i) {
+            guest_worlds[i] = p.world_list[i];
+            guest_worlds[i].next = (i + 1 < p.world_list.size()) ? &guest_worlds[i + 1] : nullptr;
+        }
+        guest_resp->world = guest_worlds;
+    } else {
+        guest_resp->world = nullptr;
     }
 
-    p.world_info_response = std::make_unique<OrbisNpMatching2GetWorldInfoListResponse>();
-    p.world_info_response->world = p.world_list.empty() ? nullptr : p.world_list.data();
-    p.world_info_response->worldNum = p.world_list.size();
-
-    p.request_data = p.world_info_response.get();
+    p.request_data = guest_resp;
     return p.request_data;
 }
 
@@ -538,15 +691,22 @@ void* BuildSearchRoomPayload(ContextObject& ctx, CallbackPayload& p,
         build_bin(r.external_bin_attrs(), dst.externalBinAttr, dst.externalBinAttrs);
     }
 
-    p.search_room_response = std::make_unique<OrbisNpMatching2SearchRoomResponse>();
-    auto& out = *p.search_room_response;
-    out = OrbisNpMatching2SearchRoomResponse{};
-    out.range.start = resp.range_start();
-    out.range.total = resp.range_total();
-    out.range.results = resp.range_result();
-    out.roomDataExt = p.room_data_external.empty() ? nullptr : p.room_data_external.data();
+    auto* guest_resp = GuestMemoryPool::Allocate<OrbisNpMatching2SearchRoomResponse>();
+    guest_resp->range.start = resp.range_start();
+    guest_resp->range.total = resp.range_total();
+    guest_resp->range.results = resp.range_result();
+    if (room_count > 0) {
+        auto* guest_rooms = GuestMemoryPool::Allocate<OrbisNpMatching2RoomDataExternal>(room_count);
+        for (int i = 0; i < room_count; ++i) {
+            guest_rooms[i] = p.room_data_external[i];
+            guest_rooms[i].next = (i + 1 < room_count) ? &guest_rooms[i + 1] : nullptr;
+        }
+        guest_resp->roomDataExt = guest_rooms;
+    } else {
+        guest_resp->roomDataExt = nullptr;
+    }
 
-    p.request_data = p.search_room_response.get();
+    p.request_data = guest_resp;
     return p.request_data;
 }
 
@@ -668,15 +828,22 @@ void* BuildSearchRoomPayloadA(ContextObject& ctx, CallbackPayload& p,
         build_bin(r.external_bin_attrs(), dst.externalBinAttr, dst.externalBinAttrs);
     }
 
-    p.search_room_response_a = std::make_unique<OrbisNpMatching2SearchRoomResponseA>();
-    auto& out = *p.search_room_response_a;
-    out = OrbisNpMatching2SearchRoomResponseA{};
-    out.range.start = resp.range_start();
-    out.range.total = resp.range_total();
-    out.range.results = resp.range_result();
-    out.roomDataExt = p.room_data_external_a.empty() ? nullptr : p.room_data_external_a.data();
+    auto* guest_resp = GuestMemoryPool::Allocate<OrbisNpMatching2SearchRoomResponseA>();
+    guest_resp->range.start = resp.range_start();
+    guest_resp->range.total = resp.range_total();
+    guest_resp->range.results = resp.range_result();
+    if (room_count > 0) {
+        auto* guest_rooms = GuestMemoryPool::Allocate<OrbisNpMatching2RoomDataExternalA>(room_count);
+        for (int i = 0; i < room_count; ++i) {
+            guest_rooms[i] = p.room_data_external_a[i];
+            guest_rooms[i].next = (i + 1 < room_count) ? &guest_rooms[i + 1] : nullptr;
+        }
+        guest_resp->roomDataExt = guest_rooms;
+    } else {
+        guest_resp->roomDataExt = nullptr;
+    }
 
-    p.request_data = p.search_room_response_a.get();
+    p.request_data = guest_resp;
     return p.request_data;
 }
 
@@ -1144,22 +1311,63 @@ void* BuildGetRoomDataInternalPayload(ContextObject& ctx, CallbackPayload& p,
         p.member_data[i].next = (i + 1 < p.member_data.size()) ? &p.member_data[i + 1] : nullptr;
     }
 
-    p.create_join_response = std::make_unique<OrbisNpMatching2CreateJoinRoomResponse>();
-    auto& out = *p.create_join_response;
-    out = OrbisNpMatching2CreateJoinRoomResponse{};
-    out.roomData = p.room_data.get();
-    out.members.members = p.member_data.empty() ? nullptr : p.member_data.data();
-    out.members.membersNum = p.member_data.size();
-    for (auto& md : p.member_data) {
-        if (md.memberId == ctx.my_member_id) {
-            out.members.me = &md;
+    auto* guest_resp = GuestMemoryPool::Allocate<OrbisNpMatching2CreateJoinRoomResponse>();
+    auto* guest_room = GuestMemoryPool::Allocate<OrbisNpMatching2RoomDataInternal>();
+    *guest_room = *p.room_data;
+
+    if (!p.room_groups.empty()) {
+        auto* g_groups = GuestMemoryPool::Allocate<OrbisNpMatching2RoomGroup>(p.room_groups.size());
+        std::memcpy(g_groups, p.room_groups.data(), sizeof(OrbisNpMatching2RoomGroup) * p.room_groups.size());
+        guest_room->roomGroup = g_groups;
+    } else {
+        guest_room->roomGroup = nullptr;
+    }
+
+    if (!p.room_bin_attrs.empty()) {
+        auto* g_attrs = GuestMemoryPool::Allocate<OrbisNpMatching2RoomBinAttrInternal>(p.room_bin_attrs.size());
+        for (size_t i = 0; i < p.room_bin_attrs.size(); ++i) {
+            g_attrs[i] = p.room_bin_attrs[i];
+            if (p.room_bin_attrs[i].binAttr.data && p.room_bin_attrs[i].binAttr.dataSize > 0) {
+                void* g_data = GuestMemoryPool::Allocate(p.room_bin_attrs[i].binAttr.dataSize);
+                std::memcpy(g_data, p.room_bin_attrs[i].binAttr.data, p.room_bin_attrs[i].binAttr.dataSize);
+                g_attrs[i].binAttr.data = static_cast<u8*>(g_data);
+            }
         }
-        if (md.flagAttr & ORBIS_NP_MATCHING2_ROOMMEMBER_FLAG_ATTR_OWNER) {
-            out.members.owner = &md;
+        guest_room->internalBinAttr = g_attrs;
+    } else {
+        guest_room->internalBinAttr = nullptr;
+    }
+
+    OrbisNpMatching2RoomMemberDataInternal* guest_members = nullptr;
+    if (!p.member_data.empty()) {
+        guest_members = GuestMemoryPool::Allocate<OrbisNpMatching2RoomMemberDataInternal>(p.member_data.size());
+        for (size_t i = 0; i < p.member_data.size(); ++i) {
+            guest_members[i] = p.member_data[i];
+            guest_members[i].next = (i + 1 < p.member_data.size()) ? &guest_members[i + 1] : nullptr;
         }
     }
 
-    p.request_data = p.create_join_response.get();
+    guest_resp->roomData = guest_room;
+    guest_resp->members.members = guest_members;
+    guest_resp->members.membersNum = p.member_data.size();
+    guest_resp->members.me = nullptr;
+    guest_resp->members.owner = nullptr;
+    for (size_t i = 0; i < p.member_data.size(); ++i) {
+        if (guest_members[i].memberId == ctx.my_member_id) {
+            guest_resp->members.me = &guest_members[i];
+        }
+        if (guest_members[i].flagAttr & ORBIS_NP_MATCHING2_ROOMMEMBER_FLAG_ATTR_OWNER) {
+            guest_resp->members.owner = &guest_members[i];
+        }
+    }
+    if (!guest_resp->members.me && !p.member_data.empty()) {
+        guest_resp->members.me = &guest_members[0];
+    }
+    if (!guest_resp->members.owner && !p.member_data.empty()) {
+        guest_resp->members.owner = &guest_members[0];
+    }
+
+    p.request_data = guest_resp;
     return p.request_data;
 }
 
@@ -1354,18 +1562,21 @@ s32 ContextManager::CreateContext(const OrbisNpId* owner_np_id, OrbisNpServiceLa
     std::lock_guard lock(m_mutex);
 
     OrbisNpMatching2ContextId id = 0;
-    for (u32 i = 0; i < kMaxContexts; ++i) {
-        const OrbisNpMatching2ContextId candidate =
-            static_cast<OrbisNpMatching2ContextId>(((m_next_id - 1 + i) % kMaxContexts) + 1);
-        if (!m_contexts[candidate]) {
-            id = candidate;
+    // CyberConnect2 maintains an internal table of exactly 4 context slots (0..3).
+    // Always assign the lowest available context ID (1..4) so it never overflows 4.
+    for (u32 i = 1; i <= 4; ++i) {
+        if (!m_contexts[i]) {
+            id = static_cast<OrbisNpMatching2ContextId>(i);
             break;
         }
     }
     if (id == 0) {
-        return ORBIS_NP_MATCHING2_ERROR_CONTEXT_MAX;
+        // If all 4 slots are occupied, force-reclaim slot 1 to prevent 0x80552C05 exhaustion
+        id = 1;
+        NpHandler::GetInstance().ResetMatching2Cache(1);
+        m_contexts[1].reset();
     }
-    m_next_id = static_cast<OrbisNpMatching2ContextId>((id % kMaxContexts) + 1);
+    m_next_id = static_cast<OrbisNpMatching2ContextId>((id % 4) + 1);
 
     auto ctx = std::make_shared<ContextObject>();
     NpHandler::GetInstance().ResetMatching2Cache(id);
@@ -1398,11 +1609,8 @@ bool ContextManager::Destroy(OrbisNpMatching2ContextId ctx_id) {
     if (!ctx) {
         return false;
     }
-    if (ctx->stop_pending) {
-        ctx->destroy_pending = true;
-        LOG_INFO(Lib_NpMatching2, "context destroy deferred until stop callback: id={}", ctx_id);
-        return true;
-    }
+    ctx->stop_pending = false;
+    ctx->destroy_pending = false;
     NpHandler::GetInstance().ResetMatching2Cache(ctx_id);
     m_contexts[ctx_id].reset();
     LOG_INFO(Lib_NpMatching2, "context destroyed: id={}", ctx_id);
@@ -1768,11 +1976,35 @@ PS4_SYSV_ABI void* EventDispatcherThreadMain(void*) {
     return nullptr;
 }
 
+void DrainMatching2Events() {
+    auto& state = NpHandler::GetInstance().GetMatching2State();
+    std::vector<PendingEvent> ready;
+    {
+        std::unique_lock lock(state.queue_mutex);
+        if (!state.dispatch_running.load() || state.pending_events.empty()) {
+            return;
+        }
+        const auto now = std::chrono::steady_clock::now();
+        for (auto it = state.pending_events.begin(); it != state.pending_events.end();) {
+            if (it->fire_at <= now) {
+                ready.push_back(std::move(*it));
+                it = state.pending_events.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+    for (const PendingEvent& ev : ready) {
+        FireEvent(ev);
+    }
+}
+
 void InitEventDispatcher() {
     auto& state = NpHandler::GetInstance().GetMatching2State();
     if (state.dispatch_running.exchange(true)) {
         return;
     }
+    Libraries::Np::NpManager::RegisterNpCallback("np_matching2", DrainMatching2Events);
     const s32 rc = NpCommon::sceNpCreateThread(
         &state.dispatch_thread, EventDispatcherThreadMain, nullptr,
         Libraries::Kernel::ORBIS_KERNEL_PRIO_FIFO_DEFAULT,
@@ -1791,6 +2023,7 @@ void TermEventDispatcher() {
     if (!state.dispatch_running.exchange(false)) {
         return;
     }
+    Libraries::Np::NpManager::DeregisterNpCallback("np_matching2");
     state.queue_cv.notify_all();
     if (state.dispatch_thread) {
         NpCommon::sceNpJoinThread(state.dispatch_thread, nullptr);

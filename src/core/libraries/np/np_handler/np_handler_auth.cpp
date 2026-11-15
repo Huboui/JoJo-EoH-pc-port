@@ -36,13 +36,22 @@ s32 NpHandler::RequestAuthorizationCode(s32 user_id, const std::string& client_i
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
     }
     if (!client || !client->IsAuthenticated()) {
-        return ORBIS_NP_ERROR_SIGNED_OUT;
+        // HLE mock auth code for local/P2P sessions
+        if (ctx) {
+            if (ctx->authCode) {
+                std::strncpy(ctx->authCode->code, "v1.mock_auth_code_for_pc_hle", sizeof(ctx->authCode->code) - 1);
+            }
+            if (ctx->issuerId) {
+                *ctx->issuerId = 1;
+            }
+            ctx->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     std::lock_guard lock(m_mutex_pending_auth);
     const u64 pkt_id = client->GetAuthorizationCode(client_id, scope);

@@ -446,7 +446,7 @@ public:
 
 class ControllerOutput {
 public:
-    static GameControllers controllers;
+    static GameControllers& controllers;
     static void GetGetGamepadIndexFromSDLJoystickID(const SDL_JoystickID id) {}
     static void LinkJoystickAxes();
 

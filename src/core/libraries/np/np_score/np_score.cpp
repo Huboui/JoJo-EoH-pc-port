@@ -152,11 +152,14 @@ s32 PS4_SYSV_ABI sceNpScoreCreateRequest(s32 titleCtxId) {
 
 s32 PS4_SYSV_ABI sceNpScoreDeleteRequest(s32 reqId) {
     LOG_INFO(Lib_NpScore, "DeleteRequest reqId={}", reqId);
+    if (reqId <= 0) {
+        return ORBIS_OK;
+    }
     std::lock_guard lock(g_mutex);
     auto req = LookupRequestUnlocked(reqId);
     if (!req) {
-        LOG_ERROR(Lib_NpScore, "invalid reqId {}", reqId);
-        return ORBIS_NP_COMMUNITY_ERROR_INVALID_ID;
+        LOG_WARNING(Lib_NpScore, "DeleteRequest reqId {} not found, ignoring", reqId);
+        return ORBIS_OK;
     }
     req->SetResult(ORBIS_NP_COMMUNITY_ERROR_ABORTED);
     g_requests.erase(reqId);
@@ -165,14 +168,17 @@ s32 PS4_SYSV_ABI sceNpScoreDeleteRequest(s32 reqId) {
 
 s32 PS4_SYSV_ABI sceNpScoreAbortRequest(s32 reqId) {
     LOG_INFO(Lib_NpScore, "AbortRequest reqId={}", reqId);
+    if (reqId <= 0) {
+        return ORBIS_OK;
+    }
     std::shared_ptr<ScoreRequestCtx> req;
     {
         std::lock_guard lock(g_mutex);
         req = LookupRequestUnlocked(reqId);
     }
     if (!req) {
-        LOG_ERROR(Lib_NpScore, "invalid reqId {}", reqId);
-        return ORBIS_NP_COMMUNITY_ERROR_INVALID_ID;
+        LOG_WARNING(Lib_NpScore, "AbortRequest reqId {} not found, ignoring", reqId);
+        return ORBIS_OK;
     }
     req->SetResult(ORBIS_NP_COMMUNITY_ERROR_ABORTED);
     return ORBIS_OK;

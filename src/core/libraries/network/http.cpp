@@ -31,6 +31,7 @@
 #include "core/libraries/kernel/process.h"
 #include "core/libraries/libs.h"
 #include "core/libraries/network/http.h"
+#include "core/libraries/network/steamworks_hle.h"
 #include "http_error.h"
 
 #if __has_include(<httplib.h>)
@@ -1768,7 +1769,8 @@ int PS4_SYSV_ABI sceHttpSendRequest(int reqId, const void* postData, u64 size) {
         }
     }
 
-    const bool online = EmulatorSettings.IsConnectedToNetwork();
+    const bool online = EmulatorSettings.IsConnectedToNetwork() ||
+                        Libraries::Network::SteamworksHLE::Instance().IsActive();
     LOG_INFO(Lib_Http, "reqId={} dispatched to async worker [{} {} {}://{}:{}{}]", reqId,
              online ? "ONLINE" : "OFFLINE", HttpMethodName(plan.method), plan.scheme, plan.host,
              plan.port, plan.path);

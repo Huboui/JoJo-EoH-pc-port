@@ -104,6 +104,16 @@ bool CanBlitToSwapchain(const vk::PhysicalDevice physical_device, vk::Format for
 static vk::Rect2D FitImage(s32 frame_width, s32 frame_height, s32 swapchain_width,
                            s32 swapchain_height) {
     float frame_aspect = static_cast<float>(frame_width) / frame_height;
+    const std::string aspect_setting = EmulatorSettings.GetAspectRatio();
+    if (aspect_setting == "21:9" || aspect_setting == "21:9 Ultrawide") {
+        frame_aspect = 21.0f / 9.0f;
+    } else if (aspect_setting == "16:10") {
+        frame_aspect = 16.0f / 10.0f;
+    } else if (aspect_setting == "4:3") {
+        frame_aspect = 4.0f / 3.0f;
+    } else if (aspect_setting == "16:9") {
+        frame_aspect = 16.0f / 9.0f;
+    }
     float swapchain_aspect = static_cast<float>(swapchain_width) / swapchain_height;
 
     u32 dst_width = swapchain_width;

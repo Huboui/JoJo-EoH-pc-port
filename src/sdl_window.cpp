@@ -23,6 +23,7 @@
 #include "core/libraries/system/userservice.h"
 #include "core/user_settings.h"
 #include "imgui/friends_layer.h"
+
 #include "imgui/renderer/imgui_core.h"
 #include "input/controller.h"
 #include "input/input_handler.h"
@@ -97,8 +98,16 @@ static Uint32 SDLCALL PollControllerLightColour(void* userdata, SDL_TimerID time
 
 WindowSDL::WindowSDL(s32 width_, s32 height_, Input::GameControllers* controllers_,
                      std::string_view window_title)
-    : width{width_}, height{height_}, controllers{*controllers_} {
-    if (!SDL_SetHint(SDL_HINT_APP_NAME, "shadPS4")) {
+    : width{width_}, height{height_}, controllers{controllers_} {
+#ifdef _WIN32
+    _putenv("SDL_GAMECONTROLLER_ALLOW_STEAM_VIRTUAL_GAMEPAD=1");
+    _putenv("SDL_GAMECONTROLLER_IGNORE_DEVICES=");
+    _putenv("SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT=");
+#endif
+    SDL_SetHint("SDL_GAMECONTROLLER_ALLOW_STEAM_VIRTUAL_GAMEPAD", "1");
+    SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
+    SDL_SetHint(SDL_HINT_XINPUT_ENABLED, "1");
+    if (!SDL_SetHint(SDL_HINT_APP_NAME, "JoJo EoH")) {
         UNREACHABLE_MSG("Failed to set SDL window hint: {}", SDL_GetError());
     }
     if (!SDL_Init(SDL_INIT_VIDEO)) {
@@ -185,12 +194,15 @@ WindowSDL::WindowSDL(s32 width_, s32 height_, Input::GameControllers* controller
     Input::ControllerOutput::LinkJoystickAxes();
     Input::ParseInputConfig(std::string(Common::ElfInfo::Instance().GameSerial()));
 
-    if (EmulatorSettings.IsBackgroundControllerInput()) {
-        SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
-    }
+    SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
 }
 
-WindowSDL::~WindowSDL() = default;
+WindowSDL::~WindowSDL() {
+    if (window) {
+        SDL_DestroyWindow(window);
+        window = nullptr;
+    }
+}
 
 void WindowSDL::SetIcon(std::span<const u8> png_data) {
     if (png_data.empty()) {
@@ -203,9 +215,12 @@ void WindowSDL::SetIcon(std::span<const u8> png_data) {
 
 void WindowSDL::WaitEvent() {
     // Called on main thread
+#ifdef _WIN32
+    // Callbacks are pumped on a single dedicated thread in SteamworksHLE::CallbackThread.
+#endif
     SDL_Event event;
 
-    if (!SDL_WaitEvent(&event)) {
+    if (!SDL_WaitEventTimeout(&event, 16)) {
         return;
     }
 
@@ -240,7 +255,7 @@ void WindowSDL::WaitEvent() {
         break;
     case SDL_EVENT_GAMEPAD_ADDED:
     case SDL_EVENT_GAMEPAD_REMOVED:
-        controllers.TryOpenSDLControllers();
+        controllers->TryOpenSDLControllers();
         break;
     case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
     case SDL_EVENT_GAMEPAD_BUTTON_UP:
@@ -301,13 +316,13 @@ void WindowSDL::WaitEvent() {
         break;
     case SDL_EVENT_ADD_VIRTUAL_USER:
         for (int i = 0; i < 4; i++) {
-            if (controllers[i]->user_id == -1) {
+            if ((*controllers)[i]->user_id == -1) {
                 auto u = UserManagement.GetUserByPlayerIndex(i + 1);
                 if (!u) {
                     break;
                 }
-                controllers[i]->user_id = u->user_id;
-                controllers[i]->ConnectController(controllers[i]->m_sdl_gamepad);
+                (*controllers)[i]->user_id = u->user_id;
+                (*controllers)[i]->ConnectController((*controllers)[i]->m_sdl_gamepad);
                 UserManagement.LoginUser(u, i + 1);
                 break;
             }
@@ -316,10 +331,10 @@ void WindowSDL::WaitEvent() {
     case SDL_EVENT_REMOVE_VIRTUAL_USER:
         LOG_INFO(Input, "Remove user");
         for (int i = 3; i >= 0; i--) {
-            if (controllers[i]->user_id != -1) {
-                UserManagement.LogoutUser(UserManagement.GetUserByID(controllers[i]->user_id));
-                controllers[i]->DisconnectController();
-                controllers[i]->user_id = -1;
+            if ((*controllers)[i]->user_id != -1) {
+                UserManagement.LogoutUser(UserManagement.GetUserByID((*controllers)[i]->user_id));
+                (*controllers)[i]->DisconnectController();
+                (*controllers)[i]->user_id = -1;
                 break;
             }
         }
@@ -341,9 +356,9 @@ void WindowSDL::WaitEvent() {
 
 void WindowSDL::InitTimers() {
     for (int i = 0; i < 4; ++i) {
-        SDL_AddTimer(4, &PollController, controllers[i]);
+        SDL_AddTimer(4, &PollController, (*controllers)[i]);
     }
-    SDL_AddTimer(33, Input::MousePolling, (void*)controllers[0]);
+    SDL_AddTimer(33, Input::MousePolling, (void*)(*controllers)[0]);
 }
 
 void WindowSDL::RequestKeyboard() {
@@ -407,12 +422,18 @@ void WindowSDL::OnGamepadEvent(const SDL_Event* event) {
                       event->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN;
     Input::InputEvent input_event = Input::InputBinding::GetInputEventFromSDLEvent(*event);
 
-    // the touchpad button shouldn't be rebound to anything else,
-    // as it would break the entire touchpad handling
-    // You can still bind other things to it though
-    if (event->gbutton.button == SDL_GAMEPAD_BUTTON_TOUCHPAD) {
-        controllers[controllers.GetGamepadIndexFromJoystickId(event->gbutton.which)]->Button(
-            OrbisPadButtonDataOffset::TouchPad, input_down);
+    const bool is_button_event = (event->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN ||
+                                  event->type == SDL_EVENT_GAMEPAD_BUTTON_UP);
+
+    if (is_button_event &&
+        (event->gbutton.button == SDL_GAMEPAD_BUTTON_TOUCHPAD ||
+         event->gbutton.button == SDL_GAMEPAD_BUTTON_BACK ||
+         event->gbutton.button == SDL_GAMEPAD_BUTTON_MISC1)) {
+        u8 idx = controllers->GetGamepadIndexFromJoystickId(event->gbutton.which);
+        if (idx < 5) {
+            (*controllers)[idx]->Button(OrbisPadButtonDataOffset::TouchPad, input_down);
+            (*controllers)[idx]->SetTouchpadState(0, input_down, 0.5f, 0.5f);
+        }
         return;
     }
 
@@ -422,15 +443,15 @@ void WindowSDL::OnGamepadEvent(const SDL_Event* event) {
     case SDL_EVENT_GAMEPAD_SENSOR_UPDATE:
         switch ((SDL_SensorType)event->gsensor.sensor) {
         case SDL_SENSOR_GYRO:
-            gamepad = controllers.GetGamepadIndexFromJoystickId(event->gsensor.which);
+            gamepad = controllers->GetGamepadIndexFromJoystickId(event->gsensor.which);
             if (gamepad < 5) {
-                controllers[gamepad]->UpdateGyro(event->gsensor.data);
+                (*controllers)[gamepad]->UpdateGyro(event->gsensor.data);
             }
             break;
         case SDL_SENSOR_ACCEL:
-            gamepad = controllers.GetGamepadIndexFromJoystickId(event->gsensor.which);
+            gamepad = controllers->GetGamepadIndexFromJoystickId(event->gsensor.which);
             if (gamepad < 5) {
-                controllers[gamepad]->UpdateAcceleration(event->gsensor.data);
+                (*controllers)[gamepad]->UpdateAcceleration(event->gsensor.data);
             }
             break;
         default:
@@ -439,21 +460,21 @@ void WindowSDL::OnGamepadEvent(const SDL_Event* event) {
         return;
     case SDL_EVENT_GAMEPAD_TOUCHPAD_DOWN:
     case SDL_EVENT_GAMEPAD_TOUCHPAD_UP:
-    case SDL_EVENT_GAMEPAD_TOUCHPAD_MOTION:
-        controllers[controllers.GetGamepadIndexFromJoystickId(event->gtouchpad.which)]
-            ->SetTouchpadState(event->gtouchpad.finger,
-                               event->type != SDL_EVENT_GAMEPAD_TOUCHPAD_UP, event->gtouchpad.x,
-                               event->gtouchpad.y);
+    case SDL_EVENT_GAMEPAD_TOUCHPAD_MOTION: {
+        u8 pad_idx = controllers->GetGamepadIndexFromJoystickId(event->gtouchpad.which);
+        if (pad_idx < 5) {
+            (*controllers)[pad_idx]->SetTouchpadState(event->gtouchpad.finger,
+                                                      event->type != SDL_EVENT_GAMEPAD_TOUCHPAD_UP,
+                                                      event->gtouchpad.x, event->gtouchpad.y);
+        }
         return;
+    }
     default:
         break;
     }
 
-    // add/remove it from the list
     bool inputs_changed = Input::UpdatePressedKeys(input_event);
-
     if (inputs_changed) {
-        // update bindings
         Input::ActivateOutputsFromInputs();
     }
 }

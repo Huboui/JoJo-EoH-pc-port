@@ -88,7 +88,7 @@ private:
 private:
     s32 width;
     s32 height;
-    Input::GameControllers controllers{};
+    Input::GameControllers* controllers{};
     WindowSystemInfo window_info{};
     SDL_Window* window{};
     bool is_shown{};

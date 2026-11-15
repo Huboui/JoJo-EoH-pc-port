@@ -21,6 +21,7 @@
 #include "core/libraries/np/np_error.h"
 #include "core/libraries/np/np_handler/np_handler.h"
 #include "core/libraries/np/np_matching2/np_matching2_internal.h"
+#include "core/libraries/network/steamworks_hle.h"
 #include "core/libraries/np/np_matching2/np_matching2_mm.h"
 #include "core/libraries/np/np_matching2/np_matching2_signaling.h"
 #include "core/libraries/np/np_signaling/np_signaling_transport.h"
@@ -926,44 +927,144 @@ s32 MmContextStop(OrbisNpMatching2ContextId ctx_id) {
 s32 MmSubmitRequest(OrbisNpMatching2ContextId ctx_id, OrbisNpMatching2RequestId req_id,
                     OrbisNpMatching2Event req_event, MmCommand cmd, const std::vector<u8>& payload,
                     bool a_variant) {
-    std::shared_ptr<ShadNet::ShadNetClient> client;
-    {
-        std::lock_guard lock(g_mm.mutex);
-        client = g_mm.client;
-    }
-    if (!client || !client->IsAuthenticated()) {
-        LOG_ERROR(Lib_NpMatching2, "cmd={} not connected", static_cast<u16>(cmd));
-        return ORBIS_NP_MATCHING2_ERROR_INVALID_CONTEXT_ID;
-    }
-
     auto ctx = NpHandler::GetInstance().GetMatching2ContextManager().Get(ctx_id);
     if (!ctx) {
         LOG_ERROR(Lib_NpMatching2, "cmd={} invalid ctx={}", static_cast<u16>(cmd), ctx_id);
         return ORBIS_NP_MATCHING2_ERROR_INVALID_CONTEXT_ID;
     }
     const RequestCallbackInfo request_cb = ConsumeRequestCallback(ctx);
-    if (IsMatching2BackendDisabled() && !IsContextLifecycleEvent(req_event)) {
-        LOG_INFO(Lib_NpMatching2,
-                 "matching2 backend disabled; failing ctx={} reqId={} "
-                 "event={:#x} cmd={}",
-                 ctx_id, req_id, static_cast<u16>(req_event), static_cast<u16>(cmd));
 
-        s32 error_code = ORBIS_NP_MATCHING2_ERROR_SERVER_NOT_AVAILABLE;
+    std::shared_ptr<ShadNet::ShadNetClient> client;
+    {
+        std::lock_guard lock(g_mm.mutex);
+        client = g_mm.client;
+    }
+
+    if (!client || !client->IsAuthenticated() || IsMatching2BackendDisabled()) {
+        LOG_INFO(Lib_NpMatching2, "HLE fallback for matching2 cmd={} req_event={:#x} req_id={}",
+                 static_cast<u16>(cmd), static_cast<u16>(req_event), req_id);
+        s32 error_code = ORBIS_OK;
         void* request_data = nullptr;
         std::shared_ptr<CallbackPayload> request_payload_owner;
+
+        if (req_event == ORBIS_NP_MATCHING2_CONTEXT_EVENT_STARTED ||
+            req_event == ORBIS_NP_MATCHING2_CONTEXT_EVENT_STOPPED) {
+            PendingEvent ev{};
+            ev.type = PendingEvent::CONTEXT_CB;
+            ev.ctx_id = ctx_id;
+            ev.context_owner = ctx;
+            ev.fire_at = std::chrono::steady_clock::now();
+            ev.ctx_event = req_event;
+            ev.ctx_event_cause = ORBIS_NP_MATCHING2_EVENT_CAUSE_CONTEXT_ACTION;
+            ev.error_code = error_code;
+            ScheduleEvent(std::move(ev));
+            return ORBIS_OK;
+        }
+
         if (req_event == ORBIS_NP_MATCHING2_REQUEST_EVENT_GET_WORLD_INFO_LIST) {
-            LOG_INFO(Lib_NpMatching2, "matching2 backend disabled; returning empty world");
             shadnet::GetWorldInfoListReply reply;
             auto* world = reply.add_worlds();
             world->set_world_id(1);
-            world->set_lobbies_num(0);
-            world->set_max_lobby_members(0);
-            world->set_lobby_members_num(0);
-            world->set_rooms_num(0);
-            world->set_room_members_num(0);
+            world->set_lobbies_num(1);
+            world->set_max_lobby_members(16);
+            world->set_lobby_members_num(1);
+            world->set_rooms_num(1);
+            world->set_room_members_num(1);
+
+            auto* world2 = reply.add_worlds();
+            world2->set_world_id(65537); // 0x10001 (Eyes of Heaven default world)
+            world2->set_lobbies_num(1);
+            world2->set_max_lobby_members(16);
+            world2->set_lobby_members_num(1);
+            world2->set_rooms_num(1);
+            world2->set_room_members_num(1);
+
             request_payload_owner = std::make_shared<CallbackPayload>();
             request_data = BuildGetWorldInfoListPayload(*ctx, *request_payload_owner, reply);
-            error_code = ORBIS_OK;
+        } else if (req_event == ORBIS_NP_MATCHING2_REQUEST_EVENT_CREATE_JOIN_ROOM ||
+                   req_event == ORBIS_NP_MATCHING2_REQUEST_EVENT_CREATE_JOIN_ROOM_A ||
+                   req_event == ORBIS_NP_MATCHING2_REQUEST_EVENT_JOIN_ROOM ||
+                   req_event == ORBIS_NP_MATCHING2_REQUEST_EVENT_JOIN_ROOM_A) {
+            shadnet::CreateRoomRequest create_req;
+            if (!payload.empty()) {
+                (void)create_req.ParseFromArray(payload.data(), static_cast<int>(payload.size()));
+            }
+
+            u32 server_id = 1;
+            u32 world_id = create_req.world_id() != 0 ? create_req.world_id() : 65537;
+            u32 lobby_id = create_req.lobby_id();
+            u32 max_slots = create_req.max_slots() != 0 ? create_req.max_slots() : 2;
+            u32 flags = create_req.flags();
+
+            shadnet::CreateJoinRoomResponse details;
+            auto* rd = details.mutable_room_data();
+            rd->set_server_id(server_id);
+            rd->set_world_id(world_id);
+            rd->set_lobby_id(lobby_id);
+            rd->set_room_id(1);
+            rd->set_max_slot(max_slots);
+            rd->set_public_slots(max_slots);
+            rd->set_open_public_slots(max_slots > 1 ? max_slots - 1 : 1);
+            rd->set_private_slots(0);
+            rd->set_open_private_slots(0);
+            rd->set_flags(flags);
+            rd->set_passwd_slot_mask(0);
+            rd->set_joined_slot_mask(1);
+            details.set_me_member_id(1);
+            details.set_owner_member_id(1);
+
+            for (const auto& in_bin : create_req.internal_bin_attrs()) {
+                auto* out_bin = rd->add_bin_attrs_internal();
+                out_bin->set_attr_id(in_bin.attr_id());
+                out_bin->set_data(in_bin.data());
+                out_bin->set_update_member_id(1);
+                out_bin->set_update_date(1000);
+            }
+
+            for (int i = 0; i < create_req.group_configs_size(); ++i) {
+                const auto& grp = create_req.group_configs(i);
+                auto* out_grp = rd->add_groups();
+                out_grp->set_group_id(static_cast<uint32_t>(i));
+                out_grp->set_slot_count(grp.slot_count());
+                out_grp->set_has_passwd(grp.has_passwd());
+                out_grp->set_has_label(grp.has_label());
+                out_grp->set_label(grp.label());
+                out_grp->set_num_members(1);
+            }
+
+            Libraries::Network::SteamworksHLE::Instance().CreateLobby(max_slots, false);
+            auto* mem = details.add_members();
+            mem->set_member_id(1);
+            std::string my_pname = Libraries::Network::SteamworksHLE::Instance().GetMyPersonaName();
+            mem->set_npid(my_pname.empty() ? "Player_1000" : my_pname);
+            uint64_t my_sid = Libraries::Network::SteamworksHLE::Instance().GetMySteamId();
+            mem->set_account_id(my_sid != 0 ? my_sid : 0x1000000000000001ULL);
+            mem->set_platform(1);
+            mem->set_team_id(1);
+            mem->set_nat_type(2);
+            mem->set_flag_attr(ORBIS_NP_MATCHING2_ROOMMEMBER_FLAG_ATTR_OWNER);
+            mem->set_is_owner(true);
+            mem->set_join_date(1000);
+            mem->set_group_id(0);
+
+            request_payload_owner = std::make_shared<CallbackPayload>();
+            request_data = a_variant ? BuildCreateJoinRoomPayloadA(*ctx, *request_payload_owner, details)
+                                     : BuildCreateJoinRoomPayload(*ctx, *request_payload_owner, details);
+        } else if (req_event == ORBIS_NP_MATCHING2_REQUEST_EVENT_SEARCH_ROOM ||
+                   req_event == ORBIS_NP_MATCHING2_REQUEST_EVENT_SEARCH_ROOM_A) {
+            shadnet::SearchRoomReply reply;
+            reply.set_range_start(0);
+            reply.set_range_total(0);
+            reply.set_range_result(0);
+            request_payload_owner = std::make_shared<CallbackPayload>();
+            request_data = a_variant ? BuildSearchRoomPayloadA(*ctx, *request_payload_owner, reply)
+                                     : BuildSearchRoomPayload(*ctx, *request_payload_owner, reply);
+        } else if (req_event == ORBIS_NP_MATCHING2_REQUEST_EVENT_LEAVE_ROOM) {
+            Libraries::Network::SteamworksHLE::Instance().LeaveLobby();
+            shadnet::LeaveRoomReply reply;
+            reply.set_room_id(1);
+            request_payload_owner = std::make_shared<CallbackPayload>();
+            request_data = BuildLeaveRoomPayload(*ctx, *request_payload_owner, reply);
         }
 
         PendingEvent ev{};
@@ -981,6 +1082,7 @@ s32 MmSubmitRequest(OrbisNpMatching2ContextId ctx_id, OrbisNpMatching2RequestId 
         ScheduleEvent(std::move(ev));
         return ORBIS_OK;
     }
+
 
     LOG_INFO(Lib_NpMatching2,
              "ctx={} reqId={} event={:#x} cmd={} aVariant={} callback={:#x} "
@@ -1424,16 +1526,20 @@ bool RequestSignalingInfos(std::string_view target_online_id, u32* out_addr, u16
     if (!out_addr || !out_port) {
         return false;
     }
-    if (IsMatching2BackendDisabled()) {
-        return false;
-    }
     std::shared_ptr<ShadNet::ShadNetClient> client;
     {
         std::lock_guard lock(g_mm.mutex);
         client = g_mm.client;
     }
-    if (!client || !client->IsAuthenticated()) {
-        return false;
+    if (!client || !client->IsAuthenticated() || IsMatching2BackendDisabled()) {
+        uint32_t peer_ip = 0x7F000001;
+        if (Libraries::Network::SteamworksHLE::Instance().IsActive() &&
+            Libraries::Network::SteamworksHLE::Instance().HasActivePeer()) {
+            peer_ip = Libraries::Network::SteamworksHLE::Instance().GetActivePeerIp();
+        }
+        *out_addr = Libraries::Net::sceNetHtonl(peer_ip);
+        *out_port = Libraries::Net::sceNetHtons(3658);
+        return true;
     }
     // Room events and replies are handled on the reader thread, which is the one that would
     // read this reply. Waiting there always times out, so leave it to the handshake thread.

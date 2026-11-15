@@ -62,7 +62,11 @@ endif()
 if (ARCHITECTURE STREQUAL "x86_64")
     # Target x86-64-v3 CPU architecture as this is a good balance between supporting performance critical
     # instructions like AVX2 and maintaining support for older CPUs.
-    add_compile_options(-march=x86-64-v3)
+    if (MSVC)
+        add_compile_options(/arch:AVX2 /FS)
+    else()
+        add_compile_options(-march=x86-64-v3)
+    endif()
 endif()
 
 cmake_host_system_information(RESULT PROC_INFO QUERY PROCESSOR_DESCRIPTION)
@@ -387,6 +391,8 @@ set(NETWORK_LIBS src/core/libraries/network/http.cpp
                  src/core/libraries/network/ssl.h
                  src/core/libraries/network/ssl2.cpp
                  src/core/libraries/network/ssl2.h
+                 src/core/libraries/network/steamworks_hle.cpp
+                 src/core/libraries/network/steamworks_hle.h
 )
 
 set(AVPLAYER_LIB src/core/libraries/avplayer/avplayer_common.cpp
@@ -681,6 +687,8 @@ set(NP_LIBS src/core/libraries/np/np_error.h
             src/core/libraries/np/np_profile_dialog/np_profile_dialog.h
             src/core/libraries/np/np_profile_dialog/np_profile_dialog_ui.cpp
             src/core/libraries/np/np_profile_dialog/np_profile_dialog_ui.h
+            src/core/libraries/np/np_friend_list_dialog/np_friend_list_dialog.cpp
+            src/core/libraries/np/np_friend_list_dialog/np_friend_list_dialog.h
             src/core/libraries/np/np_score/np_score.cpp
             src/core/libraries/np/np_score/np_score.h
             src/core/libraries/np/np_score/np_score_ctx.h
@@ -1337,6 +1345,8 @@ add_executable(shadps4
     ${EMULATOR}
     ${SHADNET}
     src/main.cpp
+    src/launcher/jojo_launcher.h
+    src/launcher/jojo_launcher.cpp
     src/emulator.cpp
     src/emulator.h
     src/sdl_window.h
@@ -1417,6 +1427,18 @@ endif()
 
 if (WIN32)
     target_link_libraries(shadps4 PRIVATE mincore wepoll wbemuuid)
+    target_include_directories(shadps4 PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/third_party/steamworks/public")
+    target_link_libraries(shadps4 PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/third_party/steamworks/steam_api64.lib")
+    add_custom_command(TARGET shadps4 POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/third_party/steamworks/steam_api64.dll"
+        $<TARGET_FILE_DIR:shadps4>
+    )
+    add_custom_command(TARGET shadps4 POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/steam_appid.txt"
+        $<TARGET_FILE_DIR:shadps4>
+    )
 
     if (MSVC)
         # MSVC likes putting opinions on what people can use, disable:
@@ -1454,6 +1476,8 @@ if (WIN32)
     # Change base image address
     if (MSVC)
         target_link_options(shadps4 PRIVATE /BASE:0x700000000000)
+        target_link_options(shadps4 PRIVATE /OPT:REF /OPT:ICF /INCREMENTAL:NO)
+        target_compile_options(shadps4 PRIVATE /clang:-ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=. /clang:-ffile-prefix-map=D:/Games/jjba\ EoH=. /clang:-ffile-prefix-map=C:/Users/khaled=.)
     else()
         target_link_options(shadps4 PRIVATE -Wl,--image-base=0x700000000000)
     endif()

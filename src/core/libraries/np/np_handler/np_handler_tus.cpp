@@ -40,10 +40,15 @@ s32 NpHandler::TusGetMultiSlotVariable(
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (ctx) {
+            ctx->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     shadnet::TusGetMultiSlotVariableRequest proto;
     proto.set_ownernpid(ownerNpId);
@@ -87,10 +92,15 @@ s32 NpHandler::TusSetMultiSlotVariable(s32 user_id, s32 service_label, const std
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (ctx) {
+            ctx->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     shadnet::TusSetMultiSlotVariableRequest proto;
     proto.set_ownernpid(ownerNpId);
@@ -133,10 +143,15 @@ s32 NpHandler::TssGetData(s32 user_id, s32 service_label, s32 slotId, bool hasOf
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (ctx) {
+            ctx->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     shadnet::TssGetDataRequest proto;
     proto.set_slotid(slotId);
@@ -182,10 +197,24 @@ s32 NpHandler::TusGetData(s32 user_id, s32 service_label, const std::string& own
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (statusOut && statusCap >= sizeof(NpTus::OrbisNpTusDataStatus)) {
+            std::memset(statusOut, 0, sizeof(NpTus::OrbisNpTusDataStatus));
+        }
+        if (statusAOut && statusCap >= sizeof(NpTus::OrbisNpTusDataStatusA)) {
+            std::memset(statusAOut, 0, sizeof(NpTus::OrbisNpTusDataStatusA));
+        }
+        if (statusCSOut && statusCap >= sizeof(NpTus::OrbisNpTusDataStatusForCrossSave)) {
+            std::memset(statusCSOut, 0, sizeof(NpTus::OrbisNpTusDataStatusForCrossSave));
+        }
+        if (ctx) {
+            ctx->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     shadnet::TusGetDataRequest proto;
     proto.set_ownernpid(ownerNpId);
@@ -230,10 +259,15 @@ s32 NpHandler::TusDeleteMultiSlotData(s32 user_id, s32 service_label, const std:
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (ctx) {
+            ctx->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     shadnet::TusDeleteMultiSlotDataRequest proto;
     proto.set_ownernpid(ownerNpId);
@@ -272,10 +306,15 @@ s32 NpHandler::TusDeleteMultiSlotVariable(s32 user_id, s32 service_label,
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (ctx) {
+            ctx->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     shadnet::TusDeleteMultiSlotVariableRequest proto;
     proto.set_ownernpid(ownerNpId);
@@ -317,10 +356,15 @@ s32 NpHandler::TusGetMultiUserDataStatus(s32 user_id, s32 service_label, s32 slo
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (ctx) {
+            ctx->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     shadnet::TusGetMultiUserDataStatusRequest proto;
     proto.set_slotid(slotId);
@@ -364,10 +408,15 @@ s32 NpHandler::TusGetMultiUserVariable(s32 user_id, s32 service_label, s32 slotI
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (ctx) {
+            ctx->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     shadnet::TusGetMultiUserVariableRequest proto;
     proto.set_slotid(slotId);
@@ -412,10 +461,15 @@ s32 NpHandler::TusTryAndSetVariable(s32 user_id, s32 service_label, const std::s
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (ctx) {
+            ctx->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     shadnet::TusTryAndSetVariableRequest proto;
     proto.set_ownernpid(ownerNpId);
@@ -477,10 +531,15 @@ s32 NpHandler::TusAddAndGetVariable(s32 user_id, s32 service_label, const std::s
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (ctx) {
+            ctx->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     shadnet::TusAddAndGetVariableRequest proto;
     proto.set_ownernpid(ownerNpId);
@@ -535,10 +594,15 @@ s32 NpHandler::TusGetFriendsDataStatus(s32 user_id, s32 service_label, s32 slotI
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (ctx) {
+            ctx->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     // Always targets the caller's own friend list, so there is no owner field.
     shadnet::TusGetFriendsDataStatusRequest proto;
@@ -577,10 +641,15 @@ s32 NpHandler::TusGetFriendsVariable(s32 user_id, s32 service_label, s32 slotId,
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (ctx) {
+            ctx->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     // Always targets the caller's own friend list, so there is no owner field.
     shadnet::TusGetFriendsVariableRequest proto;
@@ -621,10 +690,15 @@ s32 NpHandler::TusGetMultiSlotDataStatus(s32 user_id, s32 service_label,
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (ctx) {
+            ctx->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     shadnet::TusGetMultiSlotDataStatusRequest proto;
     proto.set_ownernpid(ownerNpId);
@@ -668,10 +742,15 @@ s32 NpHandler::TusSetData(s32 user_id, s32 service_label, const std::string& own
     {
         std::lock_guard lock(m_mutex_clients);
         auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            return ORBIS_NP_ERROR_SIGNED_OUT;
+        if (it != m_clients.end()) {
+            client = it->second;
         }
-        client = it->second;
+    }
+    if (!client) {
+        if (ctx) {
+            ctx->SetResult(ORBIS_OK);
+        }
+        return ORBIS_OK;
     }
     shadnet::TusSetDataRequest proto;
     proto.set_ownernpid(ownerNpId);

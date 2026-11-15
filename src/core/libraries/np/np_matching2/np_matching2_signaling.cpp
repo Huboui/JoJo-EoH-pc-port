@@ -168,8 +168,8 @@ void* BuildSignalingGetPingInfoPayload(ContextObject& ctx, CallbackPayload& p,
 
     auto cache = NpHandler::GetInstance().LockMatching2Cache(ctx.ctx_id);
     const auto room_it = cache->rooms.find(roomId);
-    p.ping_info_response = std::make_unique<OrbisNpMatching2SignalingGetPingInfoResponse>();
-    auto& out = *p.ping_info_response;
+    auto* guest_resp = GuestMemoryPool::Allocate<OrbisNpMatching2SignalingGetPingInfoResponse>();
+    auto& out = *guest_resp;
     out = {};
     if (room_it != cache->rooms.end()) {
         out.serverId = room_it->second.server_id;
@@ -182,7 +182,7 @@ void* BuildSignalingGetPingInfoPayload(ContextObject& ctx, CallbackPayload& p,
     }
     out.rtt = GetRoomPingUs(ctx, roomId);
 
-    p.request_data = p.ping_info_response.get();
+    p.request_data = guest_resp;
     return p.request_data;
 }
 

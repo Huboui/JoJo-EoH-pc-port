@@ -9,6 +9,7 @@
 #include "core/libraries/error_codes.h"
 #include "core/libraries/invitation_dialog/invitation_dialog.h"
 #include "core/libraries/libs.h"
+#include "core/libraries/network/steamworks_hle.h"
 #include "core/libraries/np/np_handler/np_handler.h"
 #include "invitation_dialog_ui.h"
 
@@ -172,6 +173,12 @@ sceInvitationDialogOpenA(const OrbisInvitationDialogParamA* param) {
         }
         LOG_INFO(Lib_InvitationDialog, "OpenA(SEND) user={} sessionId='{}' recipients={}",
                  param->userId, g_state.session_id, g_state.account_ids.size());
+        if (Libraries::Network::SteamworksHLE::Instance().IsActive()) {
+            Libraries::Network::SteamworksHLE::Instance().OpenInviteOverlay();
+            g_state.result = Libraries::CommonDialog::Result::OK;
+            g_status = Libraries::CommonDialog::Status::FINISHED;
+            return Libraries::CommonDialog::Error::OK;
+        }
     } else {
         g_state.recv_invitations =
             Libraries::Np::NpHandler::GetInstance().GetPendingInvitations(param->userId);
@@ -283,6 +290,12 @@ sceInvitationDialogOpen(const OrbisInvitationDialogParam* param) {
         }
         LOG_INFO(Lib_InvitationDialog, "Open(SEND) user={} sessionId='{}' recipients={}",
                  param->userId, g_state.session_id, g_state.online_ids.size());
+        if (Libraries::Network::SteamworksHLE::Instance().IsActive()) {
+            Libraries::Network::SteamworksHLE::Instance().OpenInviteOverlay();
+            g_state.result = Libraries::CommonDialog::Result::OK;
+            g_status = Libraries::CommonDialog::Status::FINISHED;
+            return Libraries::CommonDialog::Error::OK;
+        }
     } else {
         auto pend = Libraries::Np::NpHandler::GetInstance().GetPendingInvitations(param->userId);
         g_state.recv_invitations = std::move(pend);

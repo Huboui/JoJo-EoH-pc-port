@@ -16,9 +16,168 @@
 #include "core/libraries/network/http.h"
 #include "core/libraries/np/np_error.h"
 #include "core/libraries/np/np_handler/np_handler.h"
+#include "core/libraries/network/steamworks_hle.h"
 #include "np_web_api_internal.h"
 
 namespace Libraries::Np::NpWebApi {
+
+static void ProcessHleWebApiRequest(OrbisNpWebApiRequest* request, const void* pData, u64 dataSize) {
+    request->is_hle = true;
+    request->hle_read_offset = 0;
+    request->hle_http_status = 200;
+
+    const std::string& group = request->userApiGroup;
+    const std::string& path = request->userPath;
+    const auto method = request->userMethod;
+
+    LOG_INFO(Lib_NpWebApi, "[HLE WebAPI] Handling group='{}' path='{}' method={}", group, path,
+             static_cast<int>(method));
+
+    if (method == ORBIS_NP_WEBAPI_HTTP_METHOD_DELETE) {
+        request->hle_http_status = 204; // 204 No Content for DELETE
+        request->hle_response_body.clear();
+        LOG_INFO(Lib_NpWebApi, "[HLE WebAPI] Handled DELETE with 204 No Content for group='{}' path='{}'",
+                 group, path);
+        return;
+    }
+
+    if (method == ORBIS_NP_WEBAPI_HTTP_METHOD_PUT) {
+        request->hle_http_status = 204; // 204 No Content for PUT
+        request->hle_response_body.clear();
+        LOG_INFO(Lib_NpWebApi, "[HLE WebAPI] Handled PUT with 204 No Content for group='{}' path='{}'",
+                 group, path);
+        return;
+    }
+
+    if (group == "sessionInvitation") {
+        if (method == ORBIS_NP_WEBAPI_HTTP_METHOD_POST && (path == "/v1/sessions/" || path == "/v1/sessions")) {
+            request->hle_http_status = 201; // Created
+            uint64_t lobbyId = Libraries::Network::SteamworksHLE::Instance().GetCurrentLobbyId();
+            if (lobbyId == 0 && Libraries::Network::SteamworksHLE::Instance().IsActive()) {
+                Libraries::Network::SteamworksHLE::Instance().CreateLobby(2, false);
+                lobbyId = Libraries::Network::SteamworksHLE::Instance().GetCurrentLobbyId();
+            }
+            std::string sid = lobbyId != 0 ? std::to_string(lobbyId) : "1000100010001";
+            std::string my_id = "huboui";
+            if (Libraries::Network::SteamworksHLE::Instance().IsActive()) {
+                std::string steam_name = Libraries::Network::SteamworksHLE::Instance().GetMyPersonaName();
+                if (!steam_name.empty()) {
+                    my_id = steam_name;
+                }
+            }
+            request->hle_response_body =
+                "{\"sessionId\":\"" + sid + "\","
+                "\"sessionPrivacy\":\"private\","
+                "\"sessionName\":\"JJBA_EOH_SESSION\","
+                "\"sessionStatus\":\"open\","
+                "\"sessionType\":\"owner-bind\","
+                "\"sessionMaxUser\":2,"
+                "\"sessionCreateTimestamp\":1478275200,"
+                "\"sessionCreator\":\"" + my_id + "\","
+                "\"members\":[{\"onlineId\":\"" + my_id + "\",\"platform\":\"PS4\"}],"
+                "\"availablePlatforms\":[\"PS4\"],"
+                "\"sessionLockFlag\":false,"
+                "\"memberCount\":1,"
+                "\"friends\":[]}";
+            LOG_INFO(Lib_NpWebApi, "[HLE WebAPI] Created session sessionId='{}' player='{}'", sid, my_id);
+            return;
+        }
+
+        if (method == ORBIS_NP_WEBAPI_HTTP_METHOD_POST && path.find("/invitations") != std::string::npos) {
+            request->hle_http_status = 201; // Created
+            if (Libraries::Network::SteamworksHLE::Instance().IsActive()) {
+                Libraries::Network::SteamworksHLE::Instance().OpenInviteOverlay();
+            }
+            request->hle_response_body = "{\"invitationId\":\"1\"}";
+            return;
+        }
+
+        if (path.find("/members") != std::string::npos) {
+            request->hle_http_status = 200;
+            std::string my_id = "huboui";
+            if (Libraries::Network::SteamworksHLE::Instance().IsActive()) {
+                std::string steam_name = Libraries::Network::SteamworksHLE::Instance().GetMyPersonaName();
+                if (!steam_name.empty()) {
+                    my_id = steam_name;
+                }
+            }
+            request->hle_response_body = "{\"members\":[{\"onlineId\":\"" + my_id + "\",\"platform\":\"PS4\"}]}";
+            return;
+        }
+
+        if (path.find("/friends/sessions") != std::string::npos) {
+            request->hle_http_status = 200;
+            request->hle_response_body = "{\"sessions\":[]}";
+            return;
+        }
+
+        if (path.find("/sessions") != std::string::npos) {
+            request->hle_http_status = 200;
+            uint64_t lobbyId = Libraries::Network::SteamworksHLE::Instance().GetCurrentLobbyId();
+            std::string sid = lobbyId != 0 ? std::to_string(lobbyId) : "1000100010001";
+            std::string my_id = "huboui";
+            if (Libraries::Network::SteamworksHLE::Instance().IsActive()) {
+                std::string steam_name = Libraries::Network::SteamworksHLE::Instance().GetMyPersonaName();
+                if (!steam_name.empty()) {
+                    my_id = steam_name;
+                }
+            }
+            request->hle_response_body =
+                "{\"sessionId\":\"" + sid + "\","
+                "\"sessionName\":\"JJBA_EOH_SESSION\","
+                "\"sessionType\":\"owner-bind\","
+                "\"sessionPrivacy\":\"private\","
+                "\"sessionMaxUser\":2,"
+                "\"sessionStatus\":\"open\","
+                "\"sessionLockFlag\":false,"
+                "\"availablePlatforms\":[\"PS4\"],"
+                "\"sessionCreateTimestamp\":1478275200,"
+                "\"sessionCreator\":\"" + my_id + "\","
+                "\"members\":[{\"onlineId\":\"" + my_id + "\",\"platform\":\"PS4\"}],"
+                "\"memberCount\":1,"
+                "\"friends\":[]}";
+            return;
+        }
+
+        if (path.find("/invitations") != std::string::npos) {
+            request->hle_http_status = 200;
+            request->hle_response_body = "{\"invitations\":[]}";
+            return;
+        }
+
+        request->hle_http_status = 200;
+        request->hle_response_body = "{}";
+        return;
+    }
+
+    if (group == "userProfile") {
+        if (path.find("blockList") != std::string::npos) {
+            request->hle_http_status = 200;
+            request->hle_response_body = "{\"blockList\":[],\"totalResults\":0,\"start\":0,\"size\":0}";
+            return;
+        }
+        if (path.find("friendList") != std::string::npos) {
+            request->hle_http_status = 200;
+            request->hle_response_body = "{\"friendList\":[],\"totalResults\":0,\"start\":0,\"size\":0}";
+            return;
+        }
+        request->hle_http_status = 200;
+        request->hle_response_body =
+            "{\"onlineId\":\"huboui\",\"region\":\"us\",\"npId\":\"huboui\","
+            "\"personalDetail\":{\"firstName\":\"Jojo\",\"lastName\":\"Player\"},"
+            "\"presence\":{\"onlineStatus\":\"online\"}}";
+        return;
+    }
+
+    if (group == "entitlement") {
+        request->hle_http_status = 200;
+        request->hle_response_body = "{\"entitlements\":[],\"total_results\":0}";
+        return;
+    }
+
+    request->hle_http_status = 200;
+    request->hle_response_body = "{}";
+}
 
 static std::recursive_mutex g_global_mutex;
 static std::map<s32, OrbisNpWebApiContext*> g_contexts;
@@ -269,9 +428,11 @@ s32 createUserContext(s32 libCtxId, Libraries::UserService::OrbisUserServiceUser
 
     OrbisNpWebApiUserContext* user_context = findUserContextByUserId(context, userId);
     if (user_context != nullptr) {
+        s32 existing_id = user_context->userCtxId;
         releaseUserContext(user_context);
         releaseContext(context);
-        return ORBIS_NP_WEBAPI_ERROR_USER_CONTEXT_ALREADY_EXIST;
+        LOG_INFO(Lib_NpWebApi, "Reusing existing user context {:#x} for userId {}", existing_id, userId);
+        return existing_id;
     }
 
     std::scoped_lock lk{context->contextLock};
@@ -427,8 +588,14 @@ s32 deleteUserContext(s32 titleUserCtxId) {
     user_context->extendedPushEventCallbacks.clear();
     user_context->servicePushEventCallbacks.clear();
     user_context->pushEventCallbacks.clear();
+    for (auto& req : user_context->requests) {
+        if (req.second) {
+            delete req.second;
+        }
+    }
     user_context->requests.clear();
     context->userContexts.erase(titleUserCtxId);
+    delete user_context;
 
     unlockContext(context);
     releaseContext(context);
@@ -440,6 +607,16 @@ s32 createRequest(s32 titleUserCtxId, const char* pApiGroup, const char* pPath,
                   const OrbisNpWebApiContentParameter* pContentParameter,
                   const OrbisNpWebApiIntCreateRequestExtraArgs* pInternalArgs, s64* pRequestId,
                   bool isMultipart) {
+    if (titleUserCtxId <= 0) {
+        std::scoped_lock lock(g_global_mutex);
+        for (const auto& [cid, ctx] : g_contexts) {
+            if (ctx && !ctx->userContexts.empty()) {
+                titleUserCtxId = ctx->userContexts.begin()->first;
+                LOG_WARNING(Lib_NpWebApi, "createRequest: titleUserCtxId was invalid, recovered to active context {:#x}", titleUserCtxId);
+                break;
+            }
+        }
+    }
     OrbisNpWebApiContext* context = findAndValidateContext(titleUserCtxId >> 0x10);
     if (context == nullptr) {
         return ORBIS_NP_WEBAPI_ERROR_LIB_CONTEXT_NOT_FOUND;
@@ -768,12 +945,21 @@ s32 sendRequest(s64 requestId, s32 partIndex, const void* pData, u64 dataSize, s
 
     unlockContext(context);
 
-    // Stubbing sceNpManagerIntGetSigninState call with a config check.
-    if (!EmulatorSettings.IsShadNetEnabled()) {
+    // HLE network hook: assume user is signed in locally
+    LOG_DEBUG(Lib_NpWebApi, "sendRequest proceeding with HLE online session");
+
+    // Process via local HLE
+    ProcessHleWebApiRequest(request, sendData, sendSize);
+    if (request->is_hle) {
+        setRequestState(request, 4);
+        if (pRespInfoOption != nullptr) {
+            pRespInfoOption->httpStatus = request->hle_http_status;
+            pRespInfoOption->responseDataSize = request->hle_response_body.size();
+        }
         releaseRequest(request);
         releaseUserContext(user_context);
         releaseContext(context);
-        return ORBIS_NP_WEBAPI_ERROR_NOT_SIGNED_IN;
+        return ORBIS_OK;
     }
 
     if (request->http_request_id == 0) {
@@ -1011,6 +1197,10 @@ s32 abortRequest(s64 requestId) {
 void releaseRequest(OrbisNpWebApiRequest* request) {
     std::scoped_lock lk{request->parentContext->contextLock};
     request->userCount--;
+    if (request->is_hle && request->userCount <= 0) {
+        request->hle_response_body.clear();
+        request->hle_response_body.shrink_to_fit();
+    }
 }
 
 s32 deleteRequest(s64 requestId) {
@@ -1061,6 +1251,7 @@ s32 deleteRequest(s64 requestId) {
         request->http_template_id = 0;
     }
     user_context->requests.erase(request->requestId);
+    delete request;
 
     releaseUserContext(user_context);
     unlockContext(context);
@@ -1378,12 +1569,8 @@ s32 createServicePushEventFilterInternal(
     auto& handle = context->handles[handleId];
     handle->userCount++;
 
-    if (pNpServiceName != nullptr && !EmulatorSettings.IsShadNetEnabled()) {
-        // Seems sceNpManagerIntGetUserList fails?
-        LOG_DEBUG(Lib_NpWebApi, "Cannot create service push event while shadNet is disabled");
-        handle->userCount--;
-        return ORBIS_NP_WEBAPI_ERROR_SIGNED_IN_USER_NOT_FOUND;
-    }
+    // HLE network hook: allow creating service push event filter
+    LOG_INFO(Lib_NpWebApi, "Creating service push event filter for service='{}'", pNpServiceName ? pNpServiceName : "(null)");
 
     g_service_push_event_filter_count++;
     if (g_service_push_event_filter_count >= 0xf0000000) {
@@ -1555,12 +1742,8 @@ s32 createExtendedPushEventFilterInternal(
     auto& handle = context->handles[handleId];
     handle->userCount++;
 
-    if (pNpServiceName != nullptr && !EmulatorSettings.IsShadNetEnabled()) {
-        // Seems sceNpManagerIntGetUserList fails?
-        LOG_DEBUG(Lib_NpWebApi, "Cannot create extended push event while shadNet is disabled");
-        handle->userCount--;
-        return ORBIS_NP_WEBAPI_ERROR_SIGNED_IN_USER_NOT_FOUND;
-    }
+    // HLE network hook: allow creating extended push event filter
+    LOG_INFO(Lib_NpWebApi, "Creating extended push event filter for service='{}'", pNpServiceName ? pNpServiceName : "(null)");
 
     g_extended_push_event_filter_count++;
     if (g_extended_push_event_filter_count >= 0xf0000000) {
@@ -1867,6 +2050,32 @@ s32 getHttpResponseHeaderValueInternal(s64 requestId, const char* pFieldName, ch
         return ORBIS_NP_WEBAPI_ERROR_REQUEST_NOT_FOUND;
     }
 
+    if (request->is_hle) {
+        std::string value;
+        bool found = false;
+        if (pFieldName && _stricmp(pFieldName, "Content-Type") == 0) {
+            value = "application/json; charset=utf-8";
+            found = true;
+        } else if (pFieldName && _stricmp(pFieldName, "Location") == 0) {
+            uint64_t lobbyId = Libraries::Network::SteamworksHLE::Instance().GetCurrentLobbyId();
+            std::string sid = lobbyId != 0 ? std::to_string(lobbyId) : "1000100010001";
+            value = "/v1/sessions/" + sid;
+            found = true;
+        }
+        if (pValueLength != nullptr)
+            *pValueLength = found ? value.size() : 0;
+        if (pValue != nullptr && valueSize > 0) {
+            const u64 n = found ? std::min<u64>(value.size(), valueSize - 1) : 0;
+            if (n > 0)
+                std::memcpy(pValue, value.data(), n);
+            pValue[n] = '\0';
+        }
+        releaseRequest(request);
+        releaseUserContext(user_context);
+        releaseContext(context);
+        return ORBIS_OK;
+    }
+
     char* block = nullptr;
     u64 blockSize = 0;
     const s32 httpReqId = getHttpRequestIdFromRequest(request);
@@ -1912,6 +2121,15 @@ s32 PS4_SYSV_ABI getHttpStatusCodeInternal(s64 requestId, s32* out_status_code) 
         releaseUserContext(user_context);
         releaseContext(context);
         return ORBIS_NP_WEBAPI_ERROR_REQUEST_NOT_FOUND;
+    }
+
+    if (request->is_hle) {
+        if (out_status_code != nullptr)
+            *out_status_code = request->hle_http_status;
+        releaseRequest(request);
+        releaseUserContext(user_context);
+        releaseContext(context);
+        return ORBIS_OK;
     }
 
     // Query HTTP layer
@@ -1998,6 +2216,24 @@ s32 PS4_SYSV_ABI readDataInternal(s64 requestId, void* pData, u64 size) {
     }
 
     setRequestEndTime(request);
+
+    if (request->is_hle) {
+        u64 avail = 0;
+        if (request->hle_response_body.size() > request->hle_read_offset) {
+            avail = request->hle_response_body.size() - request->hle_read_offset;
+        }
+        u64 to_copy = std::min<u64>(size, avail);
+        if (to_copy > 0) {
+            std::memcpy(pData, request->hle_response_body.data() + request->hle_read_offset, to_copy);
+            request->hle_read_offset += to_copy;
+        }
+        lockContext(context);
+        setRequestState(request, 0);
+        releaseRequest(request);
+        releaseUserContext(user_context);
+        releaseContext(context);
+        return static_cast<s32>(to_copy);
+    }
 
     bytesCopied = copyRequestData(request, pData, size);
     offset = (u32)bytesCopied;

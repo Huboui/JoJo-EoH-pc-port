@@ -124,9 +124,7 @@ s32 NpHandler::SendFriendRequest(s32 user_id, const std::string& npid) {
     {
         std::lock_guard lock(m_mutex_clients);
         const auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            return ORBIS_NP_ERROR_SIGNED_OUT;
-        }
+        if (it == m_clients.end()) { return ORBIS_OK; }
         client = it->second;
     }
     if (!client->IsAuthenticated()) {
@@ -151,9 +149,7 @@ s32 NpHandler::RemoveFriend(s32 user_id, const std::string& npid) {
     {
         std::lock_guard lock(m_mutex_clients);
         const auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            return ORBIS_NP_ERROR_SIGNED_OUT;
-        }
+        if (it == m_clients.end()) { return ORBIS_OK; }
         client = it->second;
     }
     if (!client->IsAuthenticated()) {
@@ -180,9 +176,7 @@ s32 NpHandler::BlockUser(s32 user_id, const std::string& npid) {
     {
         std::lock_guard lock(m_mutex_clients);
         const auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            return ORBIS_NP_ERROR_SIGNED_OUT;
-        }
+        if (it == m_clients.end()) { return ORBIS_OK; }
         client = it->second;
     }
     if (!client->IsAuthenticated()) {
@@ -212,9 +206,7 @@ s32 NpHandler::UnblockUser(s32 user_id, const std::string& npid) {
     {
         std::lock_guard lock(m_mutex_clients);
         const auto it = m_clients.find(user_id);
-        if (it == m_clients.end()) {
-            return ORBIS_NP_ERROR_SIGNED_OUT;
-        }
+        if (it == m_clients.end()) { return ORBIS_OK; }
         client = it->second;
     }
     if (!client->IsAuthenticated()) {

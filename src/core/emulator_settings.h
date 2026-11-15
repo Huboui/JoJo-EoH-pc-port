@@ -426,6 +426,7 @@ struct GPUSettings {
     Setting<u32> vblank_frequency{60};
     Setting<bool> full_screen{false};
     Setting<std::string> full_screen_mode{"Windowed"};
+    Setting<std::string> aspect_ratio{"16:9"};
     Setting<std::string> present_mode{"Mailbox"};
     Setting<bool> hdr_allowed{false};
     Setting<bool> fsr_enabled{false};
@@ -442,6 +443,7 @@ struct GPUSettings {
             make_override<GPUSettings>("copy_gpu_buffers", &GPUSettings::copy_gpu_buffers),
             make_override<GPUSettings>("full_screen", &GPUSettings::full_screen),
             make_override<GPUSettings>("full_screen_mode", &GPUSettings::full_screen_mode),
+            make_override<GPUSettings>("aspect_ratio", &GPUSettings::aspect_ratio),
             make_override<GPUSettings>("present_mode", &GPUSettings::present_mode),
             make_override<GPUSettings>("window_height", &GPUSettings::window_height),
             make_override<GPUSettings>("window_width", &GPUSettings::window_width),
@@ -468,7 +470,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(GPUSettings, window_width, window_height, int
                                    internal_screen_height, null_gpu, copy_gpu_buffers,
                                    readbacks_mode, readback_linear_images_enabled,
                                    direct_memory_access_enabled, dump_shaders, patch_shaders,
-                                   vblank_frequency, full_screen, full_screen_mode, present_mode,
+                                   vblank_frequency, full_screen, full_screen_mode, aspect_ratio, present_mode,
                                    hdr_allowed, fsr_enabled, rcas_enabled, rcas_attenuation,
                                    userfaultfd, inline_fetch_shader, fast_shader_math,
                                    submit_draw_interval)
@@ -763,6 +765,7 @@ public:
     SETTING_FORWARD_BOOL(m_gpu, CopyGpuBuffers, copy_gpu_buffers)
     SETTING_FORWARD_BOOL(m_gpu, FullScreen, full_screen)
     SETTING_FORWARD(m_gpu, FullScreenMode, full_screen_mode)
+    SETTING_FORWARD(m_gpu, AspectRatio, aspect_ratio)
     SETTING_FORWARD(m_gpu, PresentMode, present_mode)
     SETTING_FORWARD(m_gpu, WindowHeight, window_height)
     SETTING_FORWARD(m_gpu, WindowWidth, window_width)

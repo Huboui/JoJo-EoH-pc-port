@@ -332,13 +332,44 @@ PipelineCache::PipelineCache(const Instance& instance_, Scheduler& scheduler_,
     };
     WarmUp();
 
-    auto [cache_result, cache] = instance.GetDevice().createPipelineCacheUnique({});
-    ASSERT_MSG(cache_result == vk::Result::eSuccess, "Failed to create pipeline cache: {}",
-               vk::to_string(cache_result));
+    // Aggressive Vulkan pipeline caching on disk for zero shader stutter
+    std::filesystem::path cache_file = Common::FS::GetUserPath(Common::FS::PathType::ShaderDir) / "vk_driver_pipeline_cache.bin";
+    std::vector<u8> disk_cache_data;
+    if (std::filesystem::exists(cache_file)) {
+        Common::FS::IOFile f(cache_file, Common::FS::FileAccessMode::Read);
+        if (f.IsOpen()) {
+            disk_cache_data.resize(f.GetSize());
+            f.ReadRaw<u8>(disk_cache_data.data(), disk_cache_data.size());
+            LOG_INFO(Render_Vulkan, "Preloaded {} bytes of Vulkan driver pipeline cache from disk", disk_cache_data.size());
+        }
+    }
+
+    vk::PipelineCacheCreateInfo cache_ci{
+        .initialDataSize = disk_cache_data.size(),
+        .pInitialData = disk_cache_data.empty() ? nullptr : disk_cache_data.data(),
+    };
+    auto [cache_result, cache] = instance.GetDevice().createPipelineCacheUnique(cache_ci);
+    if (cache_result != vk::Result::eSuccess) {
+        auto [res2, cache2] = instance.GetDevice().createPipelineCacheUnique({});
+        cache = std::move(cache2);
+    }
     pipeline_cache = std::move(cache);
 }
 
-PipelineCache::~PipelineCache() = default;
+PipelineCache::~PipelineCache() {
+    if (pipeline_cache) {
+        auto [res, data] = instance.GetDevice().getPipelineCacheData(*pipeline_cache);
+        if (res == vk::Result::eSuccess && !data.empty()) {
+            std::filesystem::path cache_file = Common::FS::GetUserPath(Common::FS::PathType::ShaderDir) / "vk_driver_pipeline_cache.bin";
+            std::filesystem::create_directories(cache_file.parent_path());
+            Common::FS::IOFile f(cache_file, Common::FS::FileAccessMode::Write);
+            if (f.IsOpen()) {
+                f.WriteRaw<u8>(data.data(), data.size());
+                LOG_INFO(Render_Vulkan, "Saved {} bytes of Vulkan driver pipeline cache to disk", data.size());
+            }
+        }
+    }
+}
 
 const GraphicsPipeline* PipelineCache::GetGraphicsPipeline(const DrawIndirectParams params) {
     draw_indirect_params = params;

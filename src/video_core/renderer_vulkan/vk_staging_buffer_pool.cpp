@@ -18,8 +18,8 @@ using VideoCore::MemoryType;
 
 namespace {
 
-constexpr u64 RING_IDLE_FRAMES = 300;
-constexpr u64 LARGE_IDLE_FRAMES = 120;
+constexpr u64 RING_IDLE_FRAMES = 60;
+constexpr u64 LARGE_IDLE_FRAMES = 30;
 constexpr u64 LARGE_MIN_GRANULARITY = 64_KB;
 constexpr u64 BLOCK_SIZE = 16_MB;
 

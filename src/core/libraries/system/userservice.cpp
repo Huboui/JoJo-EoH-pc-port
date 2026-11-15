@@ -10,6 +10,7 @@
 #include "common/singleton.h"
 #include "core/emulator_settings.h"
 #include "core/libraries/libs.h"
+#include "core/libraries/network/steamworks_hle.h"
 #include "core/libraries/np/np_handler/np_handler.h"
 #include "core/libraries/np/np_manager.h"
 #include "core/libraries/system/userservice.h"
@@ -1121,8 +1122,9 @@ s32 PS4_SYSV_ABI sceUserServiceGetUserName(int user_id, char* user_name, std::si
     } else {
         LOG_ERROR(Lib_UserService, "No user found");
     }
-    // once signed in shadnet onlineid is set as username
-    if (g_shadnet_enabled && Libraries::Np::NpHandler::GetInstance().IsPsnSignedIn(user_id)) {
+    // once signed in shadnet (or Steamworks HLE) onlineid is set as username
+    if ((g_shadnet_enabled || Libraries::Network::SteamworksHLE::Instance().IsActive()) &&
+        Libraries::Np::NpHandler::GetInstance().IsPsnSignedIn(user_id)) {
         const auto np_id = Libraries::Np::NpHandler::GetInstance().GetNpId(user_id);
         const std::size_t handle_len = strnlen(np_id.handle.data, sizeof(np_id.handle.data));
         if (handle_len > 0) {

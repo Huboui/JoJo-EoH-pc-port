@@ -2,15 +2,18 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <memory>
 #include <optional>
 #include <span>
 #include <vector>
 #include <CLI/CLI.hpp>
+#include <SDL3/SDL_hints.h>
 #include <SDL3/SDL_messagebox.h>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
+#include "steam/steam_api.h"
 
 #include "common/arch.h"
 #include "common/key_manager.h"
@@ -25,6 +28,7 @@
 #include "core/user_settings.h"
 #include "emulator.h"
 #include "imgui/big_picture/big_picture.h"
+#include "launcher/jojo_launcher.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -35,7 +39,30 @@
 int main(int argc, char* argv[]) {
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
+
+    // Auto-generate steam_appid.txt if missing
+    if (!std::filesystem::exists("steam_appid.txt")) {
+        std::ofstream f("steam_appid.txt");
+        if (f.is_open()) {
+            f << "480\n";
+        }
+    }
+
+    // Mandatory Steam Check at Startup: Steam must be running
+    if (!SteamAPI_IsSteamRunning() || !SteamAPI_Init()) {
+        MessageBoxA(nullptr,
+            "Steam must be running in the background to launch JoJo's Bizarre Adventure: Eyes of Heaven and use Online Multiplayer. Please open Steam and try again.",
+            "JoJo EoH - Steam Required", MB_ICONERROR | MB_OK);
+        return 1;
+    }
+
+    _putenv("SDL_GAMECONTROLLER_ALLOW_STEAM_VIRTUAL_GAMEPAD=1");
+    _putenv("SDL_GAMECONTROLLER_IGNORE_DEVICES=");
+    _putenv("SDL_GAMECONTROLLER_IGNORE_DEVICES_EXCEPT=");
 #endif
+    SDL_SetHint("SDL_GAMECONTROLLER_ALLOW_STEAM_VIRTUAL_GAMEPAD", "1");
+    SDL_SetHint("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1");
+    SDL_SetHint("SDL_XINPUT_ENABLED", "1");
 
 #if defined(__APPLE__) && defined(ARCH_X86_64)
     // KosmicKrisp only supports Apple Silicon. Check that we are not running on an Intel Mac.
@@ -66,6 +93,7 @@ int main(int argc, char* argv[]) {
     bool configClean = false;
     bool configGlobal = false;
     bool bigPicture = false;
+    bool noLauncher = false;
     bool sameProcess = false;
     bool append_log{};
 
@@ -84,6 +112,8 @@ int main(int argc, char* argv[]) {
                  "Disable automatic loading of game patches");
 
     app.add_flag("-b,--big-picture", bigPicture, "Start in Big Picture Mode");
+    app.add_flag("--no-launcher", noLauncher, "Skip pre-game launcher");
+    app.add_flag("--direct-launch", noLauncher, "Skip pre-game launcher");
     app.add_flag("--same-process", sameProcess,
                  "Launch the game in the same process when using Big Picture Mode");
 
@@ -111,16 +141,8 @@ int main(int argc, char* argv[]) {
     // ---- Capture args after `--` verbatim ----
     app.allow_extras();
 
-    // ---- No-args behavior ----
-    if (argc == 1) {
-        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, "shadPS4",
-                                 "This is a CLI application. Please use the '-b' flag for Big "
-                                 "Picture mode, or QTLauncher for a standalone GUI:\n"
-                                 "https://github.com/shadps4-emu/shadps4-qtlauncher/releases",
-                                 nullptr);
-        std::cout << app.help();
-        return -1;
-    }
+    // ---- No-args behavior: boot directly into game ----
+    // Skip emulator UI/game list completely
 
     try {
         bool double_dash_found = false;
@@ -161,10 +183,18 @@ int main(int argc, char* argv[]) {
     // Load configurations
     EmulatorSettings.Load();
     UserSettings.Load();
+    // Ensure emulated network link is online when Steamworks is active
+    EmulatorSettings.SetConnectedToNetwork(true);
+
+    if (!noLauncher && !waitPid && !addGameFolder && !setAddonFolder) {
+        auto launch_res = JoJoLauncher::Run(argc, argv);
+        if (!launch_res.should_launch_game || launch_res.exit_requested) {
+            return 0;
+        }
+    }
 
     if (bigPicture) {
-        BigPictureMode::Launch(argv[0], sameProcess);
-        return 0;
+        LOG_INFO(Debug, "Big picture mode bypassed: directly booting game.");
     }
 
     // ---- Utility commands ----
@@ -182,13 +212,42 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
+    const std::filesystem::path defaultGamePath = std::filesystem::current_path() / "game_data/CUSA04909/eboot.bin";
     if (!gamePath.has_value()) {
         if (!gameArgs.empty()) {
             gamePath = gameArgs.front();
             gameArgs.erase(gameArgs.begin());
+        } else if (std::filesystem::exists(defaultGamePath)) {
+            gamePath = defaultGamePath.string();
         } else {
-            LOG_ERROR(Debug, "Please provide a game path or ID.");
-            return 1;
+            auto rel_path = std::filesystem::current_path() / "game_data/CUSA04909/eboot.bin";
+            auto exe_rel_path = std::filesystem::path(argv[0]).parent_path() / "game_data/CUSA04909/eboot.bin";
+            if (std::filesystem::exists(rel_path)) {
+                gamePath = rel_path.string();
+            } else if (std::filesystem::exists(exe_rel_path)) {
+                gamePath = exe_rel_path.string();
+            } else {
+                gamePath = defaultGamePath.string();
+            }
+        }
+    }
+
+    // Auto-detect and mount extracted DLC folders from game_data/CUSA04909
+    const std::filesystem::path dlcSearchDir = std::filesystem::current_path() / "game_data/CUSA04909";
+    if (std::filesystem::exists(dlcSearchDir)) {
+        int dlcIndex = 0;
+        std::error_code ec;
+        for (const auto& entry : std::filesystem::directory_iterator(dlcSearchDir, ec)) {
+            if (!entry.is_directory()) continue;
+            auto sfoPath = entry.path() / "sce_sys" / "param.sfo";
+            if (std::filesystem::exists(sfoPath)) {
+                std::string folderName = entry.path().filename().string();
+                std::string guestMountIdx = fmt::format("/addcont{}", dlcIndex++);
+                std::string guestMountName = fmt::format("/addcont/{}", folderName);
+                mounts.push_back({entry.path(), guestMountIdx});
+                mounts.push_back({entry.path(), guestMountName});
+                LOG_INFO(Debug, "Auto-mounting DLC folder '{}' to {} and {}", folderName, guestMountIdx, guestMountName);
+            }
         }
     }
 

@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iostream>
 #include <set>
+#include <unordered_set>
 #include <sstream>
 #include <fmt/core.h>
 #include <fmt/xchar.h>
@@ -39,6 +40,7 @@
 #include "core/libraries/kernel/kernel.h"
 #include "core/libraries/libs.h"
 #include "core/libraries/net/net_discovery.h"
+#include "core/libraries/network/steamworks_hle.h"
 #include "core/libraries/np/np_handler/np_handler.h"
 #include "core/libraries/np/np_trophy.h"
 #include "core/libraries/save_data/save_backup.h"
@@ -113,6 +115,7 @@ void Emulator::Shutdown() {
         // need to give SDL time to do this before the runtime exits
         std::this_thread::sleep_for(std::chrono::milliseconds{10});
     }
+    Libraries::Network::SteamworksHLE::Instance().Shutdown();
     exit_done = true;
 }
 
@@ -588,25 +591,7 @@ void Emulator::Run(std::filesystem::path file, std::vector<std::string> args,
         ExtractTrophies("/app0/sce_sys/npbind.dat", "/app0/sce_sys/trophy");
 
     std::string game_title = fmt::format("{} - {} <{}>", id, title, app_version);
-    std::string window_title = "";
-    std::string remote_url(Common::g_scm_remote_url);
-    std::string remote_host = Common::GetRemoteNameFromLink();
-    if (Common::g_is_release) {
-        if (remote_host == "shadps4-emu" || remote_url.length() == 0) {
-            window_title = fmt::format("shadPS4 v{} | {}", Common::g_version, game_title);
-        } else {
-            window_title =
-                fmt::format("shadPS4 {}/v{} | {}", remote_host, Common::g_version, game_title);
-        }
-    } else {
-        if (remote_host == "shadps4-emu" || remote_url.length() == 0) {
-            window_title = fmt::format("shadPS4 v{} {} {} | {}", Common::g_version,
-                                       Common::g_scm_branch, Common::g_scm_desc, game_title);
-        } else {
-            window_title = fmt::format("shadPS4 v{} {}/{} {} | {}", Common::g_version, remote_host,
-                                       Common::g_scm_branch, Common::g_scm_desc, game_title);
-        }
-    }
+    std::string window_title = "JoJo EoH";
     window = std::make_unique<Frontend::WindowSDL>(EmulatorSettings.GetWindowWidth(),
                                                    EmulatorSettings.GetWindowHeight(), controllers,
                                                    window_title);
@@ -674,6 +659,36 @@ void Emulator::Run(std::filesystem::path file, std::vector<std::string> args,
         mnt->Mount(mount_pair.first, mount_pair.second);
     }
 
+    // Auto-mount extracted DLC folders from game directory
+    const std::filesystem::path dlcTargetDir = std::filesystem::current_path() / "game_data" / "CUSA04909";
+    std::vector<std::filesystem::path> dlcScanDirs;
+    if (std::filesystem::exists(game_folder)) {
+        dlcScanDirs.push_back(game_folder);
+    }
+    if (std::filesystem::exists(dlcTargetDir) && dlcTargetDir != game_folder) {
+        dlcScanDirs.push_back(dlcTargetDir);
+    }
+    int autoDlcIdx = 0;
+    std::unordered_set<std::string> mountedDlcNames;
+    for (const auto& scanDir : dlcScanDirs) {
+        std::error_code ec;
+        for (const auto& entry : std::filesystem::directory_iterator(scanDir, ec)) {
+            if (!entry.is_directory()) continue;
+            auto sfoPath = entry.path() / "sce_sys" / "param.sfo";
+            if (std::filesystem::exists(sfoPath)) {
+                std::string folderName = entry.path().filename().string();
+                if (mountedDlcNames.insert(folderName).second) {
+                    std::string guestMountIdx = fmt::format("/addcont{}", autoDlcIdx++);
+                    std::string guestMountName = fmt::format("/addcont/{}", folderName);
+                    mnt->Mount(entry.path(), guestMountIdx, true);
+                    mnt->Mount(entry.path(), guestMountName, true);
+                    LOG_INFO(Loader, "Auto-mounted DLC '{}' to {} and {}",
+                             Common::FS::PathToUTF8String(entry.path()), guestMountIdx, guestMountName);
+                }
+            }
+        }
+    }
+
     if (std::filesystem::is_empty(host_font_dir) || std::filesystem::is_empty(host_font2_dir)) {
         LOG_WARNING(Loader, "No dumped system fonts, expect missing text or instability");
     }
@@ -691,7 +706,27 @@ void Emulator::Run(std::filesystem::path file, std::vector<std::string> args,
     // Load the module with the linker.
     if (linker->LoadModule(guest_eboot_path) == -1) {
         LOG_CRITICAL(Loader, "Failed to load game's eboot.bin: {}", guest_eboot_path);
-        std::quick_exit(0);
+        Libraries::Network::SteamworksHLE::Instance().Shutdown();
+    std::quick_exit(0);
+    }
+
+    auto* main_module = linker->GetModule(0);
+    if (main_module) {
+        VAddr base = main_module->GetBaseAddress();
+        if (base != 0) {
+            uint8_t* patch_site = reinterpret_cast<uint8_t*>(base + 0xb5b720);
+            if (patch_site[0] == 0x8b && patch_site[1] == 0x47 && patch_site[2] == 0x1c && patch_site[3] == 0xc3) {
+#ifdef _WIN32
+                DWORD old_prot = 0;
+                if (VirtualProtect(patch_site, 16, PAGE_EXECUTE_READWRITE, &old_prot)) {
+                    const uint8_t patch[] = {0x48, 0x85, 0xff, 0x74, 0x04, 0x8b, 0x47, 0x1c, 0xc3, 0x31, 0xc0, 0xc3, 0x90, 0x90, 0x90, 0x90};
+                    std::memcpy(patch_site, patch, sizeof(patch));
+                    VirtualProtect(patch_site, 16, old_prot, &old_prot);
+                    LOG_INFO(Loader, "Applied defensive hardening patch to Sony NP Toolkit JSON parser at {:#x}", base + 0xb5b720);
+                }
+#endif
+            }
+        }
     }
 
 #ifdef ENABLE_DISCORD_RPC
@@ -708,6 +743,7 @@ void Emulator::Run(std::filesystem::path file, std::vector<std::string> args,
     if (EmulatorSettings.IsConnectedToNetwork() && EmulatorSettings.IsDeviceDiscoveryEnabled()) {
         Libraries::Net::DiscoveryResponder::Instance().Start();
     }
+    Libraries::Network::SteamworksHLE::Instance().Initialize();
 
     if (!id.empty()) {
         start_time = std::chrono::steady_clock::now();

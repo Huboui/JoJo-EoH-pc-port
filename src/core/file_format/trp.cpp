@@ -43,13 +43,11 @@ bool TRP::Extract(const std::filesystem::path& trophyPath, std::string npCommId,
     const auto& user_key_vec =
         KeyManager::GetInstance()->GetAllKeys().TrophyKeySet.ReleaseTrophyKey;
 
-    if (user_key_vec.size() != 16) {
-        LOG_INFO(Common_Filesystem, "Trophy decryption key is not specified");
-        return false;
+    std::array<u8, 16> user_key{0xD4, 0x8D, 0x98, 0xFA, 0xCE, 0x61, 0x9B, 0x56,
+                                0x8B, 0x6C, 0x01, 0xA8, 0x6E, 0x8C, 0xA1, 0xA3};
+    if (user_key_vec.size() == 16) {
+        std::copy(user_key_vec.begin(), user_key_vec.end(), user_key.begin());
     }
-
-    std::array<u8, 16> user_key{};
-    std::copy(user_key_vec.begin(), user_key_vec.end(), user_key.begin());
 
     s32 trpFileIndex = 0;
     bool success = true;

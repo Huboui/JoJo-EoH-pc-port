@@ -557,6 +557,24 @@ int PS4_SYSV_ABI sceAppContentInitialize(const OrbisAppContentInitParam* initPar
         LoadLicenses(srv.service_id, srv.service_label);
     }
 
+    // Also scan game folder and D:\Games\jjba EoH\game_data\CUSA04909 for extracted DLCs
+    auto* mnt = Common::Singleton<Core::FileSys::MntPoints>::Instance();
+    std::vector<std::filesystem::path> extra_dirs;
+    const auto app0_path = mnt->GetHostPath("/app0");
+    if (!app0_path.empty() && std::filesystem::exists(app0_path)) {
+        extra_dirs.push_back(app0_path);
+    }
+    const std::filesystem::path hardcoded_cusa = std::filesystem::current_path() / "game_data" / "CUSA04909";
+    if (std::filesystem::exists(hardcoded_cusa)) {
+        extra_dirs.push_back(hardcoded_cusa);
+    }
+    for (const auto& extra_dir : extra_dirs) {
+        if (std::ranges::find(addon_paths, extra_dir) == addon_paths.end()) {
+            addon_paths.push_back(extra_dir);
+        }
+        LoadAddonFolder(extra_dir, 0);
+    }
+
     if (addcont_count > 0) {
         SystemService::OrbisSystemServiceEvent event{};
         event.event_type = SystemService::OrbisSystemServiceEventType::EntitlementUpdate;

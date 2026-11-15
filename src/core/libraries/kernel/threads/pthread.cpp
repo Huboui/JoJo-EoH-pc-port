@@ -74,6 +74,7 @@ static void ExitThread() {
      * Kernel will do wakeup at the address, so joiner thread
      * will be resumed if it is sleeping at the address.
      */
+    Core::NativeThread* native_thr = curthread->native_thr.get();
     {
         std::scoped_lock wait_lock{curthread->join_wait_mutex};
         curthread->tid.store(TidTerminated, std::memory_order_release);
@@ -81,7 +82,12 @@ static void ExitThread() {
     curthread->tid.notify_all();
     curthread->join_wait_cv.notify_all();
 
-    curthread->native_thr->Exit();
+    if (native_thr) {
+        native_thr->Exit();
+    }
+#ifdef WIN32
+    ::ExitThread(0);
+#endif
     UNREACHABLE();
     /* Never reach! */
 }

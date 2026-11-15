@@ -231,7 +231,7 @@ std::list<std::pair<InputEvent, bool>> pressed_keys;
 std::list<InputID> toggled_keys;
 static std::vector<BindingConnection> connections;
 
-GameControllers ControllerOutput::controllers =
+GameControllers& ControllerOutput::controllers =
     *Common::Singleton<Input::GameControllers>::Instance();
 
 std::array<ControllerAllOutputs, 9> output_arrays = {

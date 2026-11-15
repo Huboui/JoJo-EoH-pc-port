@@ -20,6 +20,7 @@
 #include "core/libraries/net/net_util.h"
 #include "core/libraries/network/net_ctl_codes.h"
 #include "core/libraries/network/netctl.h"
+#include "core/libraries/network/steamworks_hle.h"
 
 namespace Libraries::NetCtl {
 
@@ -162,9 +163,7 @@ int PS4_SYSV_ABI sceNetCtlGetIfStat() {
 
 int PS4_SYSV_ABI sceNetCtlGetInfo(int code, OrbisNetCtlInfo* info) {
     LOG_DEBUG(Lib_NetCtl, "code = {}", code);
-    if (!EmulatorSettings.IsConnectedToNetwork()) {
-        return ORBIS_NET_CTL_ERROR_NOT_CONNECTED;
-    }
+    // HLE network hook: do not reject if offline, allow default config retrieval
 
     auto* netinfo = Common::Singleton<NetUtil::NetUtilInternal>::Instance();
 
@@ -180,18 +179,13 @@ int PS4_SYSV_ABI sceNetCtlGetInfo(int code, OrbisNetCtlInfo* info) {
         info->mtu = 1500; // default value
         break;
     case ORBIS_NET_CTL_INFO_LINK:
-        info->link = EmulatorSettings.IsConnectedToNetwork() ? ORBIS_NET_CTL_LINK_CONNECTED
-                                                             : ORBIS_NET_CTL_LINK_DISCONNECTED;
+        info->link = (EmulatorSettings.IsConnectedToNetwork() ||
+                      Libraries::Network::SteamworksHLE::Instance().IsActive())
+                         ? ORBIS_NET_CTL_LINK_CONNECTED
+                         : ORBIS_NET_CTL_LINK_DISCONNECTED;
         break;
     case ORBIS_NET_CTL_INFO_IP_ADDRESS: {
-        strcpy(info->ip_address,
-               "127.0.0.1"); // placeholder in case ip retrieval failed
-        auto success = netinfo->RetrieveIp();
-        if (success) {
-            strncpy(info->ip_address, netinfo->GetIp().data(), sizeof(info->ip_address));
-        } else {
-            LOG_WARNING(Lib_NetCtl, "local ip: failed to retrieve");
-        }
+        strcpy(info->ip_address, "10.0.0.1"); // Virtual SDR peer IP to prevent leaking real player IP
         break;
     }
     case ORBIS_NET_CTL_INFO_NETMASK: {
@@ -242,6 +236,14 @@ int PS4_SYSV_ABI sceNetCtlGetInfo(int code, OrbisNetCtlInfo* info) {
     case ORBIS_NET_CTL_INFO_DHCP_HOSTNAME:
         LOG_DEBUG(Lib_NetCtl, "dhcp hostname: none");
         break;
+    case 22: // ORBIS_NET_CTL_INFO_NAT_TYPE
+        info->device = 1; // Type 1: Open NAT
+        LOG_DEBUG(Lib_NetCtl, "nat type: {}", info->device);
+        break;
+    case 23: // ORBIS_NET_CTL_INFO_STUN_STATUS
+        info->device = 1; // STUN status: OK
+        LOG_DEBUG(Lib_NetCtl, "stun status: {}", info->device);
+        break;
     default:
         LOG_ERROR(Lib_NetCtl, "{} unsupported code", code);
     }
@@ -267,18 +269,9 @@ int PS4_SYSV_ABI sceNetCtlGetNatInfo(OrbisNetCtlNatInfo* nat_info) {
     }
 
     auto* netinfo = Common::Singleton<NetUtil::NetUtilInternal>::Instance();
-    nat_info->nat_type = netinfo->GetNatType();
-    const u32 ext_ip = netinfo->GetExternalIp();
-    if (ext_ip != 0) {
-        nat_info->stun_status = 1;
-        nat_info->mapped_addr = ext_ip;
-    } else {
-        nat_info->stun_status = 0;
-        nat_info->mapped_addr = inet_addr("127.0.0.1");
-        if (netinfo->RetrieveIp()) {
-            nat_info->mapped_addr = inet_addr(netinfo->GetIp().c_str());
-        }
-    }
+    nat_info->nat_type = 1; // Open NAT (Type 1) for seamless Steamworks P2P / SDR routing
+    nat_info->stun_status = 1;
+    nat_info->mapped_addr = inet_addr("10.0.0.1");
 
     LOG_DEBUG(Lib_NetCtl, "stun_status={} nat_type={} mapped_addr={:#x}", nat_info->stun_status,
               nat_info->nat_type, nat_info->mapped_addr);
@@ -340,11 +333,11 @@ int PS4_SYSV_ABI sceNetCtlGetScanInfoForSsidScanIpcInt() {
 }
 
 int PS4_SYSV_ABI sceNetCtlGetState(int* state) {
-    const auto connected = EmulatorSettings.IsConnectedToNetwork();
-    LOG_DEBUG(Lib_NetCtl, "connected = {}", connected);
-    const auto current_state =
-        connected ? ORBIS_NET_CTL_STATE_IPOBTAINED : ORBIS_NET_CTL_STATE_DISCONNECTED;
-    *state = current_state;
+    LOG_DEBUG(Lib_NetCtl, "called - reporting IPOBTAINED for local/P2P HLE");
+    if (!state) {
+        return ORBIS_NET_CTL_ERROR_INVALID_ADDR;
+    }
+    *state = ORBIS_NET_CTL_STATE_IPOBTAINED;
     return ORBIS_OK;
 }
 

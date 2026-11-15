@@ -621,6 +621,7 @@ bool EmulatorSettingsImpl::TransferSettings() {
         setFromToml(s.vblank_frequency, gpu, "vblankFrequency");
         setFromToml(s.full_screen, gpu, "Fullscreen");
         setFromToml(s.full_screen_mode, gpu, "FullscreenMode");
+        setFromToml(s.aspect_ratio, gpu, "aspectRatio");
         setFromToml(s.present_mode, gpu, "presentMode");
         setFromToml(s.hdr_allowed, gpu, "allowHDR");
         setFromToml(s.fsr_enabled, gpu, "fsrEnabled");

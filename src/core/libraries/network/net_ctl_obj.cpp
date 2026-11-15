@@ -6,6 +6,7 @@
 #include "core/emulator_settings.h"
 #include "core/libraries/network/net_ctl_codes.h"
 #include "core/libraries/network/net_ctl_obj.h"
+#include "core/libraries/network/steamworks_hle.h"
 #include "core/tls.h"
 
 namespace Libraries::NetCtl {
@@ -46,7 +47,9 @@ s32 NetCtlInternal::RegisterNpToolkitCallback(OrbisNetCtlCallbackForNpToolkit fu
 
 void NetCtlInternal::CheckCallback() {
     std::scoped_lock lock{m_mutex};
-    const auto event = EmulatorSettings.IsConnectedToNetwork()
+    const bool connected = EmulatorSettings.IsConnectedToNetwork() ||
+                           Libraries::Network::SteamworksHLE::Instance().IsActive();
+    const auto event = connected
                            ? ORBIS_NET_CTL_EVENT_TYPE_IPOBTAINED
                            : ORBIS_NET_CTL_EVENT_TYPE_DISCONNECTED;
     for (const auto [func, arg] : callbacks) {
@@ -58,7 +61,9 @@ void NetCtlInternal::CheckCallback() {
 
 void NetCtlInternal::CheckNpToolkitCallback() {
     std::scoped_lock lock{m_mutex};
-    const auto event = EmulatorSettings.IsConnectedToNetwork()
+    const bool connected = EmulatorSettings.IsConnectedToNetwork() ||
+                           Libraries::Network::SteamworksHLE::Instance().IsActive();
+    const auto event = connected
                            ? ORBIS_NET_CTL_EVENT_TYPE_IPOBTAINED
                            : ORBIS_NET_CTL_EVENT_TYPE_DISCONNECTED;
     for (const auto [func, arg] : nptool_callbacks) {

@@ -20,10 +20,11 @@
 #include "core/tls.h"
 #include "core/user_manager.h"
 #include "core/user_settings.h"
+#include "core/libraries/network/steamworks_hle.h"
 
 namespace Libraries::Np::NpManager {
 
-static bool g_shadnet_enabled = false;
+static bool g_shadnet_enabled = true;
 static s32 g_firmware_version = -1;
 static s32 g_active_requests = 0;
 static std::mutex g_request_mutex;
@@ -473,6 +474,11 @@ s32 PS4_SYSV_ABI sceNpGetAccountCountry(OrbisNpOnlineId* online_id,
     if (online_id == nullptr || country_code == nullptr) {
         return ORBIS_NP_ERROR_INVALID_ARGUMENT;
     }
+    if (Libraries::Network::SteamworksHLE::Instance().IsActive()) {
+        std::memset(country_code, 0, sizeof(OrbisNpCountryCode));
+        std::memcpy(country_code->country_code, "us", 2);
+        return ORBIS_OK;
+    }
     const s32 user_id = Libraries::Np::NpHandler::GetInstance().GetUserIdByOnlineId(*online_id);
     if (user_id == -1) {
         return ORBIS_NP_ERROR_USER_NOT_FOUND;
@@ -490,6 +496,11 @@ s32 PS4_SYSV_ABI sceNpGetAccountCountryA(Libraries::UserService::OrbisUserServic
         user_id == Libraries::UserService::ORBIS_USER_SERVICE_USER_ID_INVALID) {
         return ORBIS_NP_ERROR_INVALID_ARGUMENT;
     }
+    if (Libraries::Network::SteamworksHLE::Instance().IsActive()) {
+        std::memset(country_code, 0, sizeof(OrbisNpCountryCode));
+        std::memcpy(country_code->country_code, "us", 2);
+        return ORBIS_OK;
+    }
     if (UserManagement.GetUserByID(user_id) == nullptr) {
         return ORBIS_NP_ERROR_USER_NOT_FOUND;
     }
@@ -504,6 +515,12 @@ s32 PS4_SYSV_ABI sceNpGetAccountDateOfBirth(OrbisNpOnlineId* online_id,
                                             OrbisNpDate* date_of_birth) {
     if (online_id == nullptr || date_of_birth == nullptr) {
         return ORBIS_NP_ERROR_INVALID_ARGUMENT;
+    }
+    if (Libraries::Network::SteamworksHLE::Instance().IsActive()) {
+        date_of_birth->year = 2000;
+        date_of_birth->month = 1;
+        date_of_birth->day = 1;
+        return ORBIS_OK;
     }
     const s32 user_id = Libraries::Np::NpHandler::GetInstance().GetUserIdByOnlineId(*online_id);
     if (user_id == -1) {
@@ -522,6 +539,12 @@ s32 PS4_SYSV_ABI sceNpGetAccountDateOfBirthA(Libraries::UserService::OrbisUserSe
         user_id == Libraries::UserService::ORBIS_USER_SERVICE_USER_ID_INVALID) {
         return ORBIS_NP_ERROR_INVALID_ARGUMENT;
     }
+    if (Libraries::Network::SteamworksHLE::Instance().IsActive()) {
+        date_of_birth->year = 2000;
+        date_of_birth->month = 1;
+        date_of_birth->day = 1;
+        return ORBIS_OK;
+    }
     if (UserManagement.GetUserByID(user_id) == nullptr) {
         return ORBIS_NP_ERROR_USER_NOT_FOUND;
     }
@@ -536,6 +559,10 @@ s32 PS4_SYSV_ABI sceNpGetGamePresenceStatus(OrbisNpOnlineId* online_id,
                                             OrbisNpGamePresenseStatus* game_status) {
     if (online_id == nullptr || game_status == nullptr) {
         return ORBIS_NP_ERROR_INVALID_ARGUMENT;
+    }
+    if (Libraries::Network::SteamworksHLE::Instance().IsActive()) {
+        *game_status = OrbisNpGamePresenseStatus::Online;
+        return ORBIS_OK;
     }
     const s32 user_id = Libraries::Np::NpHandler::GetInstance().GetUserIdByOnlineId(*online_id);
     *game_status = (g_shadnet_enabled && user_id != -1 &&
@@ -563,6 +590,10 @@ s32 PS4_SYSV_ABI sceNpGetAccountId(OrbisNpOnlineId* online_id, u64* account_id) 
     if (online_id == nullptr || account_id == nullptr) {
         return ORBIS_NP_ERROR_INVALID_ARGUMENT;
     }
+    if (Libraries::Network::SteamworksHLE::Instance().IsActive()) {
+        *account_id = Libraries::Network::SteamworksHLE::Instance().GetMySteamId();
+        return ORBIS_OK;
+    }
     const s32 user_id = Libraries::Np::NpHandler::GetInstance().GetUserIdByOnlineId(*online_id);
     if (user_id == -1) {
         *account_id = 0;
@@ -583,6 +614,10 @@ s32 PS4_SYSV_ABI sceNpGetAccountIdA(Libraries::UserService::OrbisUserServiceUser
         user_id == Libraries::UserService::ORBIS_USER_SERVICE_USER_ID_INVALID) {
         return ORBIS_NP_ERROR_INVALID_ARGUMENT;
     }
+    if (Libraries::Network::SteamworksHLE::Instance().IsActive()) {
+        *account_id = Libraries::Network::SteamworksHLE::Instance().GetMySteamId();
+        return ORBIS_OK;
+    }
     if (!g_shadnet_enabled || !Libraries::Np::NpHandler::GetInstance().IsPsnSignedIn(user_id)) {
         *account_id = 0;
         return ORBIS_NP_ERROR_SIGNED_OUT;
@@ -601,6 +636,12 @@ s32 PS4_SYSV_ABI sceNpGetNpId(Libraries::UserService::OrbisUserServiceUserId use
     }
     if (np_id == nullptr) {
         return ORBIS_NP_ERROR_INVALID_ARGUMENT;
+    }
+    if (Libraries::Network::SteamworksHLE::Instance().IsActive()) {
+        std::memset(np_id, 0, sizeof(*np_id));
+        Libraries::Network::SteamworksHLE::Instance().FillNpId(reinterpret_cast<uint8_t*>(np_id->handle.data), sizeof(np_id->handle.data));
+        LOG_INFO(Lib_NpManager, "sceNpGetNpId (Steam): user_id={} handle.data='{}'", user_id, np_id->handle.data);
+        return ORBIS_OK;
     }
     if (!g_shadnet_enabled || !Libraries::Np::NpHandler::GetInstance().IsPsnSignedIn(user_id)) {
         LOG_WARNING(Lib_NpManager,
@@ -626,6 +667,10 @@ s32 PS4_SYSV_ABI sceNpGetOnlineId(Libraries::UserService::OrbisUserServiceUserId
     if (online_id == nullptr) {
         LOG_ERROR(Lib_NpManager, "invalid argument: online_id is null");
         return ORBIS_NP_ERROR_INVALID_ARGUMENT;
+    }
+    if (Libraries::Network::SteamworksHLE::Instance().IsActive()) {
+        Libraries::Network::SteamworksHLE::Instance().FillOnlineId(online_id->data, sizeof(online_id->data));
+        return ORBIS_OK;
     }
     if (!g_shadnet_enabled || !Libraries::Np::NpHandler::GetInstance().IsPsnSignedIn(user_id)) {
         LOG_INFO(Lib_NpManager,
@@ -663,6 +708,10 @@ s32 PS4_SYSV_ABI sceNpGetState(Libraries::UserService::OrbisUserServiceUserId us
         if (g_firmware_version < 0 || g_firmware_version >= Common::ElfInfo::FW_900) {
             return ORBIS_NP_ERROR_INVALID_ARGUMENT;
         }
+    }
+    if (Libraries::Network::SteamworksHLE::Instance().IsActive()) {
+        *state = OrbisNpState::SignedIn;
+        return ORBIS_OK;
     }
     if (!g_shadnet_enabled) {
         *state = OrbisNpState::SignedOut;
@@ -741,7 +790,7 @@ s32 PS4_SYSV_ABI sceNpHasSignedUp(Libraries::UserService::OrbisUserServiceUserId
     }
     // A user has signed up if they have a shadNet npid configured.
     // This is independent of shadnet_enabled and current connection state.
-    *has_signed_up = !u->shadnet_npid.empty();
+    *has_signed_up = true; // HLE auto-pass
     return ORBIS_OK;
 }
 
@@ -1211,7 +1260,7 @@ void DeregisterNpCallback(std::string key) {
 void RegisterLib(Core::Loader::SymbolsResolver* sym) {
     ASSERT_MSG(Libraries::Kernel::sceKernelGetCompiledSdkVersion(&g_firmware_version) == ORBIS_OK,
                "Failed to get compiled SDK version.");
-    g_shadnet_enabled = EmulatorSettings.IsShadNetEnabled();
+    g_shadnet_enabled = true; // Always enable for HLE network
 
     // Route live NP state changes from NpHandler into the dispatch queue so they are
     // delivered on the game's thread during sceNpCheckCallback (single delivery path).

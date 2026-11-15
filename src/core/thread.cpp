@@ -40,16 +40,17 @@ int NativeThread::Create(ThreadFunc func, void* arg) {
 }
 
 void NativeThread::Exit() {
+#ifdef _WIN64
+    tid = 0;
+    native_handle = nullptr;
+    ExitThread(0);
+#else
     if (!native_handle) {
         return;
     }
 
     tid = 0;
 
-#ifdef _WIN64
-    native_handle = nullptr;
-    ExitThread(0);
-#else
     // Disable and free the signal stack.
     constexpr stack_t sig_stack = {
         .ss_flags = SS_DISABLE,

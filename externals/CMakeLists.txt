@@ -21,6 +21,13 @@ if (NOT TARGET Boost::headers)
     add_subdirectory(ext-boost)
 endif()
 
+# fmtlib
+FetchContent_Declare(
+    fmt
+    SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/fmt"
+    OVERRIDE_FIND_PACKAGE
+)
+
 # spdlog
 set(SPDLOG_NO_EXCEPTIONS ON)
 set(SPDLOG_DISABLE_GLOBAL_LOGGER ON)

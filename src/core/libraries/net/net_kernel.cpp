@@ -19,6 +19,7 @@
 #include "core/libraries/net/net_translate.h"
 #include "core/libraries/net/net_upnp.h"
 #include "core/libraries/net/net_util.h"
+#include "core/libraries/network/steamworks_hle.h"
 #include "core/net/guest_net.h"
 
 namespace Libraries::Net {
@@ -79,7 +80,11 @@ void InstallKernelIntegration() {
     });
     SetKernelErrnoHook([](int orbis_errno) { *Libraries::Kernel::__Error() = orbis_errno; });
     SetSystemHooks({
-        .is_online = [] { return EmulatorSettings.IsConnectedToNetwork(); },
+        .is_online =
+            [] {
+                return EmulatorSettings.IsConnectedToNetwork() ||
+                       Libraries::Network::SteamworksHLE::Instance().IsActive();
+            },
         .mac_address =
             [](std::array<u8, 6>* mac) {
                 auto* netinfo = Common::Singleton<NetUtil::NetUtilInternal>::Instance();

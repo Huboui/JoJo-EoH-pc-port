@@ -10,6 +10,7 @@
 #include "core/emulator_settings.h"
 #include "core/libraries/error_codes.h"
 #include "core/libraries/libs.h"
+#include "core/libraries/network/steamworks_hle.h"
 #include "core/libraries/np/np_auth/np_auth.h"
 #include "core/libraries/np/np_auth/np_auth_ctx.h"
 #include "core/libraries/np/np_error.h"
@@ -19,7 +20,7 @@
 
 namespace Libraries::Np::NpAuth {
 
-static bool g_shadnet_enabled = false;
+static bool g_shadnet_enabled = true;
 static std::mutex g_auth_request_mutex;
 static constexpr s32 ORBIS_NP_AUTH_POLL_ASYNC_RET_FINISHED = 0;
 static constexpr s32 ORBIS_NP_AUTH_POLL_ASYNC_RET_RUNNING = 1;
@@ -130,7 +131,7 @@ s32 GetAuthorizationCode(s32 req_id, const OrbisNpAuthGetAuthorizationCodeParame
         return error;
     }
 
-    if (!g_shadnet_enabled) {
+    if (!g_shadnet_enabled && !Libraries::Network::SteamworksHLE::Instance().IsActive()) {
         ctx->SetResult(ORBIS_NP_ERROR_SIGNED_OUT);
         return FinishStartedRequest(async, ctx);
     }
@@ -166,7 +167,7 @@ sceNpAuthGetAuthorizationCode(s32 req_id, const OrbisNpAuthGetAuthorizationCodeP
         LOG_ERROR(Lib_NpAuth, "called with null parameter");
         return ORBIS_NP_AUTH_ERROR_INVALID_ARGUMENT;
     }
-    if (!g_shadnet_enabled) {
+    if (!g_shadnet_enabled && !Libraries::Network::SteamworksHLE::Instance().IsActive()) {
         LOG_ERROR(Lib_NpAuth, "shadnet is not enabled , user not found");
         return ORBIS_NP_ERROR_USER_NOT_FOUND;
     }
@@ -323,7 +324,7 @@ s32 GetIdToken(s32 req_id, const OrbisNpAuthGetIdTokenParameterA* param, s32 fla
         return error;
     }
 
-    if (!g_shadnet_enabled) {
+    if (!g_shadnet_enabled && !Libraries::Network::SteamworksHLE::Instance().IsActive()) {
         ctx->SetResult(ORBIS_NP_ERROR_SIGNED_OUT);
         return FinishStartedRequest(async, ctx);
     }
@@ -383,7 +384,7 @@ s32 PS4_SYSV_ABI sceNpAuthGetIdTokenV3(s32 req_id, const OrbisNpAuthGetIdTokenPa
 }
 
 void RegisterLib(Core::Loader::SymbolsResolver* sym) {
-    g_shadnet_enabled = EmulatorSettings.IsShadNetEnabled();
+    g_shadnet_enabled = true;
 
     LIB_FUNCTION("6bwFkosYRQg", "libSceNpAuth", 1, "libSceNpAuth", sceNpAuthCreateRequest);
     LIB_FUNCTION("N+mr7GjTvr8", "libSceNpAuth", 1, "libSceNpAuth", sceNpAuthCreateAsyncRequest);

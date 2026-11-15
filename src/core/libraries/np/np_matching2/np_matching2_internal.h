@@ -35,6 +35,18 @@ class NpHandler;
 
 namespace Libraries::Np::NpMatching2 {
 
+class GuestMemoryPool {
+public:
+    static void* Allocate(size_t size, size_t alignment = 16);
+
+    template<typename T>
+    static T* Allocate(size_t count = 1) {
+        return static_cast<T*>(Allocate(sizeof(T) * count, alignof(T)));
+    }
+};
+
+void DrainMatching2Events();
+
 struct CallbackPayload {
     std::unique_ptr<OrbisNpMatching2RoomDataInternal> room_data;
     std::unique_ptr<OrbisNpMatching2CreateJoinRoomResponse> create_join_response;

@@ -29,8 +29,8 @@ void RPC::setStatusIdling() {
 void RPC::setStatusPlaying(const std::string& game_name, const std::string& game_id) {
     DiscordRichPresence rpc{};
 
-    rpc.details = "Playing";
-    rpc.state = game_name.c_str();
+    rpc.details = "Playing JoJo's Bizarre Adventure: Eyes of Heaven";
+    rpc.state = "Story / Battle / Online Match";
     std::string largeImageUrl =
         "https://store.playstation.com/store/api/chihiro/00_09_000/titlecontainer/US/en/999/" +
         game_id + "_00/image";

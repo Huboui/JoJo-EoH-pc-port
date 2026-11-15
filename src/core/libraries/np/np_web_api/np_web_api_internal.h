@@ -94,6 +94,10 @@ struct OrbisNpWebApiRequest {
     s32 http_connection_id = 0;
     s32 http_request_id = 0;
     s32 http_template_id = 0;
+    bool is_hle = false;
+    std::string hle_response_body;
+    s32 hle_http_status = 200;
+    u64 hle_read_offset = 0;
 };
 
 struct OrbisNpWebApiHandle {
