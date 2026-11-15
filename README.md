@@ -1,211 +1,220 @@
 <!--
-SPDX-FileCopyrightText: 2026 shadPS4 Emulator Project
+SPDX-FileCopyrightText: 2026 JoJo: Eyes of Heaven PC Port Contributors & shadPS4 Project
 SPDX-License-Identifier: GPL-2.0-or-later
 -->
 
-<h1 align="center">
-  <br>
-  <a href="https://shadps4.net/"><img src="https://github.com/shadps4-emu/shadPS4/blob/main/.github/shadps4.png" width="220"></a>
-  <br>
-  <b>shadPS4</b>
-  <br>
-</h1>
-
-<h1 align="center">
- <a href="https://discord.gg/bFJxfftGW6">
-        <img src="https://img.shields.io/discord/1080089157554155590?color=5865F2&label=shadPS4%20Discord&logo=Discord&logoColor=white" width="275">
- <a href="https://github.com/shadps4-emu/shadPS4/releases/latest">
-        <img src="https://img.shields.io/github/downloads/shadps4-emu/shadPS4/total.svg" width="140">
- <a href="https://shadps4.net/">
-        <img src="https://img.shields.io/badge/shadPS4-website-8A2BE2" width="150">
- <a href="https://x.com/shadps4">
-        <img src="https://img.shields.io/badge/-Join%20us-black?logo=X&logoColor=white" width="100">
- <a href="https://github.com/shadps4-emu/shadPS4/stargazers">
-        <img src="https://img.shields.io/github/stars/shadps4-emu/shadPS4" width="120">
-</h1>
-
-|               Bloodborne by From Software                   |                     Hatsune Miku Project DIVA Future Tone by SEGA                         |
-| :-----------------------------------------------------------: | :--------------------------------------------------------------------------------------------: |
-| ![Bloodborne screenshot](./documents/Screenshots/1.png) | ![Project DIVA screenshot](./documents/Screenshots/2.png) |
-
-|                  Yakuza 0 by SEGA                     |                 DRIVECLUB™ by Evolution Studios                    |
-| :------------------------------------------------------------------------: | :------------------------------------------------------------------: |
-| ![Yakuza screenshot](./documents/Screenshots/3.png) | ![DRIVECLUB screenshot](./documents/Screenshots/4.png) |
-
-# General information
-
-**shadPS4** is an early **PlayStation 4** emulator for **Windows**, **Linux** and **macOS** written in C++.
-
-> [!IMPORTANT]
-> This is the emulator core, which does not include a GUI. If you just want to use the emulator as an end user, download the [**QtLauncher**](https://github.com/shadps4-emu/shadps4-qtlauncher/releases) instead.
-
-If you encounter problems or have doubts, do not hesitate to look at the [**Quickstart**](https://github.com/shadps4-emu/shadPS4/wiki/I.-Quick-start-%5BUsers%5D).\
-To verify that a game works, you can look at [**shadPS4 Game Compatibility**](https://github.com/shadps4-compatibility/shadps4-game-compatibility).\
-To discuss shadPS4 development, suggest ideas or to ask for help, join our [**Discord server**](https://discord.gg/bFJxfftGW6).\
-To get the latest news, go to our [**X (Twitter)**](https://x.com/shadps4) or our [**website**](https://shadps4.net/).\
-You can donate to the project via our [**Kofi page**](https://ko-fi.com/shadps4).
-
-# Status
-
-> [!IMPORTANT]
-> shadPS4 is early in development, don't expect a flawless experience.
-
-Currently, the emulator can successfully run games like [**Bloodborne**](https://www.youtube.com/watch?v=5sZgWyVflFM), [**Dark Souls Remastered**](https://www.youtube.com/watch?v=-3PA-Xwszts), [**Red Dead Redemption**](https://www.youtube.com/watch?v=Al7yz_5nLag), and many other games.
-
-# Why
-
-This project began for fun. Given our limited free time, it may take some time before shadPS4 can run more complex games, but we're committed to making small, regular updates.
-
-# Building
-
-## Docker
-
-For building shadPS4 in a containerized environment using Docker and VSCode, check the instructions here:  
-[**Docker Build Instructions**](https://github.com/shadps4-emu/shadPS4/blob/main/documents/building-docker.md)
-
-## Windows
-
-Check the build instructions for [**Windows**](https://github.com/shadps4-emu/shadPS4/blob/main/documents/building-windows.md).
-
-## Linux
-
-Check the build instructions for [**Linux**](https://github.com/shadps4-emu/shadPS4/blob/main/documents/building-linux.md).
-
-## macOS
-
-Check the build instructions for [**macOS**](https://github.com/shadps4-emu/shadPS4/blob/main/documents/building-macos.md).
-
-> [!IMPORTANT]
-> macOS users need at least macOS 26.0 to run shadPS4. Intel Macs are not supported.
-
-# Usage examples
-
-> [!IMPORTANT]
-> For a user-friendly GUI, download the [**QtLauncher**](https://github.com/shadps4-emu/shadps4-qtlauncher/releases).
-
-To get the list of all available commands and also a more detailed description of what each command does, please refer to the `--help` flag's output.
-
-Below is a list of commonly used command patterns:
-```sh
-shadPS4 CUSA00001 # Searches for a game folder called CUSA00001 in the list of game install folders, and boots it.
-shadPS4 --fullscreen true --config-clean CUSA00001    # the game argument is always the last one,
-shadPS4 -g CUSA00001 --fullscreen true --config-clean # ...unless manually specified otherwise.
-shadPS4 /path/to/game.elf # Boots a PS4 ELF file directly. Useful if you want to boot an executable that is not named eboot.bin.
-shadPS4 CUSA00001 -- -flag1 -flag2 # Passes '-flag1' and '-flag2' to the game executable in argv.
-```
-
-# Debugging and reporting issues
-
-For more information on how to test, debug and report issues with the emulator or games, read the [**Debugging documentation**](https://github.com/shadps4-emu/shadPS4/blob/main/documents/Debugging/Debugging.md).
-
-# Keyboard and Mouse Mappings
-
-> [!NOTE]
-> Some keyboards may also require you to hold the Fn key to use the F\* keys. Mac users should use the Command key instead of Control, and need to use Command+F11 for full screen to avoid conflicting with system key bindings.
-
-| Button | Function |
-|-------------|-------------|
-F10 | FPS Counter
-Ctrl+F10 | Video Debug Info
-F11 | Fullscreen
-F12 | Trigger RenderDoc Capture (or game-only screenshot if RenderDoc is unavailable)
-Alt+F12 | Capture screenshot including HUD/dialog overlays
-
-> [!NOTE]
-> Xbox and DualShock controllers work out of the box.
-
-| Controller button | Keyboard equivalent |
-|-------------|-------------|
-LEFT AXIS UP | W |
-LEFT AXIS DOWN | S |
-LEFT AXIS LEFT | A |
-LEFT AXIS RIGHT | D |
-RIGHT AXIS UP | I |
-RIGHT AXIS DOWN | K |
-RIGHT AXIS LEFT | J |
-RIGHT AXIS RIGHT | L |
-TRIANGLE | Numpad 8 or C |
-CIRCLE | Numpad 6 or B |
-CROSS | Numpad 2 or N |
-SQUARE | Numpad 4 or V |
-PAD UP | UP |
-PAD DOWN | DOWN |
-PAD LEFT | LEFT |
-PAD RIGHT | RIGHT |
-OPTIONS | RETURN |
-BACK BUTTON / TOUCH PAD | SPACE |
-L1 | Q |
-R1 | U |
-L2 | E |
-R2 | O |
-L3 | X |
-R3 | M |
-
-Keyboard and mouse inputs can be customized in the settings menu by clicking the Controller button, and further details and help on controls are  also found there. Custom bindings are saved per-game. Inputs support up to three keys per binding, mouse buttons, mouse movement mapped to joystick input, and more.
-
-
-# Firmware files
-
-shadPS4 can load some PlayStation 4 firmware files.
-The following firmware modules are supported and must be placed in shadPS4's `sys_modules` folder.
-
 <div align="center">
 
-| Modules                        | Modules                        | Modules                        | Modules                        |
-|--------------------------------|--------------------------------|--------------------------------|--------------------------------|
-| libSceAt9Enc.sprx              | libSceAudiodec.sprx            | libSceAudiodecCpu.sprx         | libSceAudiodecCpuDdp.sprx      |
-| libSceAudiodecCpuDtsHdLbr.sprx | libSceAudiodecCpuHevag.sprx    | libSceAudiodecCpuM4aac.sprx    | libSceAvPlayer.sprx            |
-| libSceAvPlayerStreaming.sprx   | libSceBeisobmf.sprx            | libSceBemp2sys.sprx            | libSceCesCs.sprx               |
-| libSceFont.sprx                | libSceFontFt.sprx              | libSceFreeTypeOl.sprx          | libSceFreeTypeOptOl.sprx       |
-| libSceFreeTypeOt.sprx          | libSceJpegDec.sprx             | libSceJpegEnc.sprx             | libSceJson.sprx                |
-| libSceJson2.sprx               | libSceLibcInternal.sprx        | libSceNgs2.sprx                | libScePngEnc.sprx              |
-| libScePsmKitSystem.sprx        | libSceRtc.sprx                 | libSceRudp.sprx                | libSceSystemGesture.sprx       |
-| libSceUlt.sprx                 | libSceWkFontConfig.sprx        | libSceXml.sprx                 | libSceDepth.sprx               |
-| libScePadTracker.sprx          | libSceMoveTracker.sprx         |
+# 🌟 JoJo's Bizarre Adventure: Eyes of Heaven — Standalone PC Port
+### Low-End Hardware Optimizations • Steamworks P2P Multiplayer • Custom Launcher GUI
+
+[![Platform](https://img.shields.io/badge/Platform-Windows%20x64-blue.svg?logo=windows)](https://github.com/Huboui/JoJo-EoH-pc-port)
+[![Graphics](https://img.shields.io/badge/Vulkan-1.3+-red.svg?logo=vulkan)](https://www.vulkan.org/)
+[![Multiplayer](https://img.shields.io/badge/Online-Steamworks%20P2P-black.svg?logo=steam)](https://store.steampowered.com/)
+[![License](https://img.shields.io/badge/License-GPL%20v2.0-green.svg)](LICENSE)
+[![Made with AI](https://img.shields.io/badge/Engineered%20With-AI%20%2F%20Antigravity-8A2BE2.svg)](#-ai-development-disclosure)
+
+**A high-performance, standalone PC release and enhancement fork for *JoJo's Bizarre Adventure: Eyes of Heaven* (`CUSA04909`), powered by a specialized build of shadPS4.**
+
 </div>
 
-> [!Caution]
-> The above modules are required to run the games properly and must be dumped from your legally owned PlayStation 4 console.
+---
 
+> [!NOTE]
+> ### 🤖 AI Development Disclosure
+> This project, including its native Steamworks P2P translation layer, Vulkan low-end performance optimizations, custom SDL3 pre-game launcher, dynamic button prompt injection, and Sony WebAPI defensive assembly hooks, was **designed and engineered using Artificial Intelligence (Google DeepMind Antigravity / AI Agent reverse-engineering & systems architecture)** in collaboration with human direction and testing.
 
+---
 
-# Main team
+## ⚡ Key Features
 
-- [**georgemoralis**](https://github.com/georgemoralis)
-- [**psucien**](https://github.com/psucien)
-- [**viniciuslrangel**](https://github.com/viniciuslrangel)
-- [**roamic**](https://github.com/roamic)
-- [**squidbus**](https://github.com/squidbus)
-- [**frodo**](https://github.com/baggins183)
-- [**Stephen Miller**](https://github.com/StevenMiller123)
-- [**kalaposfos13**](https://github.com/kalaposfos13)
+* **🌐 100% Pure PC Peer-to-Peer (P2P) Multiplayer:**
+  * PlayStation Network server calls (`libSceNpMatching2`, `libSceNpSignaling`, `libSceNpManager`, `libSceNpWebApi`) have been completely re-architected into native Steamworks APIs (`ISteamMatchmaking`, `ISteamNetworkingMessages`, `ISteamFriends`).
+  * Direct lobby creation, search, and invites directly through the **Steam Overlay (`Shift+Tab`)**—no Sony PSN servers or PS Plus subscriptions required.
+  * Native host-crash prevention and memory-safe response dispatching for seamless session hosting.
 
-Logo is done by [**Xphalnos**](https://github.com/Xphalnos)
+* **🚀 Low-End PC Hardware Optimizations (Zero Content Cut):**
+  * **Asynchronous Shader Compilation & Aggressive Pipeline Caching:** Virtually eliminates shader compilation stutters during Dual Heat Attacks (DHA) and dramatic stage transitions.
+  * **Vulkan Staging Buffer Reuse & Defragmentation:** Drastically reduces VRAM spikes and overall system RAM footprint.
+  * **Dynamic Render Resolution Scaler:** Native resolution scaling presets:
+    * `50%` (720p Performance mode for budget GPUs / handhelds like Steam Deck)
+    * `75%` (900p Balanced mode)
+    * `100%` (1080p Native)
+    * `133%` (1440p Quad HD)
+    * `200%` (4K Ultra HD)
+  * Built-in support for AMD FidelityFX Super Resolution (FSR) upscaling.
 
-<a href="https://github.com/shadps4-emu/shadPS4/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=shadps4-emu/shadPS4&max=24">
-</a>
+* **🎨 Custom Pre-Game Launcher GUI:**
+  * Dedicated interactive configuration tool built with SDL3 / ImGui.
+  * Custom Eyes of Heaven themed aesthetic with clean, responsive controls.
+  * **Display Settings:** Fullscreen, Borderless Windowed, Windowed, Aspect Ratio selector (16:9, 21:9 Ultrawide, 16:10, 4:3).
+  * **Keybinding Remapper:** Full interactive button mapping for both Gamepads (Xbox / PlayStation / generic XInput) and Keyboard & Mouse.
+  * **Discord Rich Presence (RPC):** Displays your current stage, game mode, and elapsed time directly on Discord.
+  * **Trophy Viewer:** Browse your unlocked in-game achievements and completion progress.
 
-# Contributing
+* **🎮 Dynamic In-Game Button Prompts:**
+  * Real-time HUD prompt replacement: seamlessly displays PlayStation buttons ($\times, \bigcirc, \square, \triangle$), Xbox buttons ($A, B, X, Y$), or PC Keyboard keys depending on your selected input device.
 
-If you want to contribute, please read the [**CONTRIBUTING.md**](https://github.com/shadps4-emu/shadPS4/blob/main/CONTRIBUTING.md) file.\
-Open a PR and we'll check it :)
+---
 
+## 📖 Step-by-Step Tutorial: How to Run the Mod
 
-# Special Thanks
+### 📋 Prerequisites
 
-A few noteworthy teams/projects who've helped us along the way are:
+Before starting, ensure your system meets these basic requirements:
+1. **Operating System:** Windows 10 or Windows 11 (64-bit).
+2. **Graphics Card:** GPU supporting **Vulkan 1.3+** (NVIDIA GeForce GTX 900 series or newer, AMD Radeon RX 400 series or newer, Intel Iris Xe / Arc, or modern AMD Ryzen / Intel Core integrated graphics).
+3. **Steam:** The **Steam client must be installed and running in the background** (logged in to any Steam account). Steam is required to power the P2P multiplayer lobbies and friend invites.
+4. **Game Data:** A legally dumped copy of *JoJo's Bizarre Adventure: Eyes of Heaven* PS4 (`CUSA04909`).
 
-- [**Panda3DS**](https://github.com/wheremyfoodat/Panda3DS): A multiplatform 3DS emulator from our co-author wheremyfoodat. They have been incredibly helpful in understanding and solving problems that came up from natively executing the x64 code of PS4 binaries
+---
 
-- [**fpPS4**](https://github.com/red-prig/fpPS4): The fpPS4 team has assisted massively with understanding some of the more complex parts of the PS4 operating system and libraries, by helping with reverse engineering work and research.
+### 📥 1. Installation
 
-- **yuzu**: Our shader compiler has been designed with yuzu's Hades compiler as a blueprint. This allowed us to focus on the challenges of emulating a modern AMD GPU while having a high-quality optimizing shader compiler implementation as a base.
+1. **Download the Release:**
+   * Grab the latest standalone package (`JoJo_EoH_PC_Release_Portable.zip`) from the [Releases tab](https://github.com/Huboui/JoJo-EoH-pc-port/releases) or clone this repository.
+2. **Extract the Files:**
+   * Extract the ZIP contents to a directory of your choice on a fast drive (e.g., `D:\Games\JoJo EoH`).
+   * *Avoid extracting directly into protected Windows directories like `C:\Program Files\` to prevent file permission issues.*
 
-- [**felix86**](https://github.com/OFFTKP/felix86): A new x86-64 → RISC-V Linux userspace emulator
+---
 
-- [**emudev.org**](https://emudev.org/): A network of people interested in the documentation, emulation, simulation and re-implementation of hardware near extinction . Belongs to my friend skmp and me (shadow) also a member of it
+### 📂 2. Setting Up Game Files
 
-# License
+Ensure your dumped game files for `CUSA04909` are placed inside the `game_data` directory alongside the executable:
 
-- [**GPL-2.0 license**](https://github.com/shadps4-emu/shadPS4/blob/main/LICENSE)
+```text
+JoJo EoH/
+├── JoJo EoH.exe                     <-- Pre-game Launcher & Game Executable
+├── shadps4.exe                      <-- Direct Emulator Core
+├── steam_api64.dll                  <-- Steamworks Integration Library
+├── steam_appid.txt                  <-- Steam AppID Configuration (480)
+├── launcher_config.toml             <-- Launcher & Graphic Settings
+├── user/                            <-- Save Data, Shaders, and Logs
+└── game_data/
+    └── CUSA04909/
+        ├── eboot.bin                <-- Game Executable
+        ├── sce_sys/                 <-- Param and icon metadata
+        └── ...                      <-- Game CPK and data files
+```
+
+> [!TIP]
+> Make sure `steam_appid.txt` and `steam_api64.dll` remain in the same folder as `JoJo EoH.exe`.
+
+---
+
+### 🚀 3. Launching the Game
+
+1. **Make Sure Steam is Running:**
+   * Launch your Steam desktop client and ensure you are logged in.
+2. **Start the Game:**
+   * Double-click **`JoJo EoH.exe`**.
+3. **The Pre-Game Launcher will open:**
+   * Adjust your settings (see below).
+   * Click **`Launch Game`** to start playing!
+
+---
+
+### ⚙️ 4. Recommended Launcher Settings
+
+#### For Low-End PCs & Laptops:
+* **Display Mode:** `Borderless Windowed` or `Exclusive Fullscreen`
+* **Render Resolution:** `720p (50%)` or `900p (75%)`
+* **Upscaler:** `AMD FSR`
+* **Vulkan Pipeline Cache:** `Enabled`
+
+#### For High-End PCs:
+* **Display Mode:** `Exclusive Fullscreen`
+* **Render Resolution:** `1080p (100%)`, `1440p (133%)`, or `4K (200%)`
+* **Aspect Ratio:** `16:9` (or `21:9 Ultrawide` for ultrawide monitors)
+
+#### Controls & Input Configuration:
+* Go to the **Controls** tab in the Launcher.
+* Select your preferred device: **`Gamepad`** (Xbox / DualShock / DualSense) or **`Keyboard & Mouse`**.
+* Click any button to rebind it to your preferred keys or controller buttons.
+* In-game button icons will automatically adapt to your chosen device.
+
+---
+
+### 🌐 5. How to Play Online Multiplayer
+
+This mod replaces Sony PSN matchmaking with **Steamworks P2P**:
+
+1. **Hosting a Match:**
+   * From the in-game main menu, navigate to:  
+     `Online Battle` ➔ `Player Match` ➔ `Create Session`.
+   * Configure your match rules and create the room.
+   * Your lobby is now hosted on your PC and broadcast via Steam.
+2. **Inviting Friends:**
+   * Press `Shift + Tab` to bring up the **Steam Overlay**.
+   * Right-click your friend in your Steam friends list and select **`Invite to Game`**.
+   * Your friend accepts the invite through Steam chat and connects directly to your session!
+3. **Searching for Matches:**
+   * Navigate to `Online Battle` ➔ `Player Match` ➔ `Search Session`.
+   * Available public lobbies hosted by other PC players will appear in the search results.
+
+---
+
+## 🛠️ Troubleshooting & FAQ
+
+<details>
+<summary><b>Error: "Steam must be running in the background..."</b></summary>
+<br>
+Steam is required for multiplayer matchmaking and P2P communication. Start your Steam desktop application, log in, and run the game again.
+</details>
+
+<details>
+<summary><b>Micro-stuttering during the first few battles</b></summary>
+<br>
+The first time you witness a special move (such as a Dual Heat Attack) or enter a new stage, the Vulkan driver compiles shaders. After the first time, these are permanently saved to disk in your shader cache, ensuring silky-smooth 60 FPS gameplay on subsequent runs.
+</details>
+
+<details>
+<summary><b>Controller is not responding</b></summary>
+<br>
+Open the launcher before booting the game, select the <b>Controls</b> tab, and ensure your gamepad is selected as the active input device. If using a PlayStation controller, Steam Input or DS4Windows can be used for native XInput translation.
+</details>
+
+---
+
+## 🔨 Building From Source
+
+### Prerequisites
+* Windows 10/11 64-bit
+* [Visual Studio 2022](https://visualstudio.microsoft.com/) with C++ Desktop Development tools
+* [CMake 3.28+](https://cmake.org/)
+* [Ninja](https://ninja-build.org/) build system
+* [Vulkan SDK](https://vulkan.lunarg.com/) 1.3+
+* LLVM / Clang-cl (recommended)
+
+### Compilation Steps
+```powershell
+# 1. Clone the repository with submodules
+git clone --recursive https://github.com/Huboui/JoJo-EoH-pc-port.git
+cd JoJo-EoH-pc-port
+
+# 2. Configure build with CMake & Ninja
+cmake -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DENABLE_CLANG=ON -DSHADPS4_ENABLE_UPDATER=OFF
+
+# 3. Compile the release executable
+cmake --build build --config Release
+```
+
+The resulting `shadps4.exe` (and launcher) will be output in the `build/` directory.
+
+---
+
+## 📜 Legal Disclaimer
+
+* *JoJo's Bizarre Adventure: Eyes of Heaven* is copyright © **Bandai Namco Entertainment Inc.** and **CyberConnect2 Co., Ltd.**
+* *JoJo's Bizarre Adventure* is created by **Hirohiko Araki / SHUEISHA Inc.**
+* This project is an independent open-source enhancement and compatibility mod developed strictly for educational and preservation purposes.
+* **No proprietary Sony PlayStation firmware files, encrypted keys, or copyrighted game assets (`.cpk`, `.xfbin`, `eboot.bin`) are distributed in this repository.** Users must dump their own legally acquired game files.
+
+---
+
+## 🤝 Credits & Acknowledgments
+
+* Based on the incredible work of the [**shadPS4 Emulator Project**](https://github.com/shadps4-emu/shadPS4) and its contributors.
+* **Valve Corporation** for Steamworks and the Steam networking API.
+* Developed and enhanced using **Google DeepMind Antigravity** autonomous engineering systems.

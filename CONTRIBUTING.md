@@ -1,133 +1,73 @@
 <!--
-SPDX-FileCopyrightText: 2024 shadPS4 Emulator Project
+SPDX-FileCopyrightText: 2026 JoJo: Eyes of Heaven PC Port Contributors & shadPS4 Project
 SPDX-License-Identifier: GPL-2.0-or-later
 -->
 
-# Style guidelines
+# Contributing to JoJo: Eyes of Heaven PC Port
 
-## General Rules
+Thank you for your interest in contributing to the **JoJo's Bizarre Adventure: Eyes of Heaven PC Port / Enhancement Project**!
 
-* Line width is typically 100 characters. Please do not use 80-characters.
-* Don't ever introduce new external dependencies into Core
-* Don't use any platform specific code in Core
-* Use namespaces often
-* Avoid the use of C-style casts and instead prefer C++-style static_cast and reinterpret_cast. Try to avoid using dynamic_cast. Never use const_cast except for when dealing with external const-incorrect APIs.
+This project is an open-source, community-driven effort focused on low-end hardware optimizations, Steamworks P2P online multiplayer emulation, custom launcher tooling, and compatibility enhancements.
 
-## A.I. Rules
+---
 
-* AI use should always be disclosed and described. If a user is found to have used AI without disclosure, they may be banned from making further PRs.
-* Descriptions and comments should never be written by AI, everything needs to be human written, so it is human readable.
-* Any AI-generated code that you wish to keep in the PR needs to be pre-reviewed and polished. The user needs to be able to logically explain their decisions, including those of any AI they use, regardless of the code's functionality.
-## Naming Rules
+## 🤖 AI Development & Contribution Policy
 
-* Functions: `PascalCase`
-* Variables: `lower_case_underscored. Prefix with g_ if global.`
-* Classes: `PascalCase`
-* Files and Directories: `lower_case_underscored`
-* Namespaces: `PascalCase`, `_` may also be used for clarity (e.g. `ARM_InitCore`)
+> [!IMPORTANT]
+> **This project was engineered using Artificial Intelligence (Google DeepMind Antigravity / AI Agent systems engineering) in collaboration with human direction and testing.**
 
-# Indentation/Whitespace Style
+We embrace modern AI-assisted software engineering. You are **fully welcome and encouraged** to use AI tools (such as Antigravity, Claude, ChatGPT, GitHub Copilot, Cursor, etc.) when developing improvements, bug fixes, or new features for this repository, subject to the following reasonable standards:
 
-Follow the indentation/whitespace style shown below. Do not use tabs, use 4-spaces instead.
+1. **Disclosure:** Please mention if your PR or contribution was generated or assisted by AI tools in your pull request description.
+2. **Quality & Verification:** All code—whether written by hand or generated with AI—must compile cleanly, run without regressions, and be tested against real game scenarios before submitting.
+3. **No Blind Hallucinations:** When contributing reverse-engineered structures, NIDs, or game memory offsets, ensure they match the actual binary layout of `CUSA04909` `eboot.bin` and are validated with disassembly/decompilation evidence.
 
-# Comments
+---
 
-* For regular comments, use C++ style (//) comments, even for multi-line ones.
-* For doc-comments (Doxygen comments), use /// if it's a single line, else use the /** */ style featured in the example. Start the text on the second line, not the first containing /**.
-* For items that are both defined and declared in two separate files, put the doc-comment only next to the associated declaration. (In a header file, usually.) Otherwise, put it next to the implementation. Never duplicate doc-comments in both places.
+## 🏛️ Codebase Architecture
 
-```c++
-// Includes should be sorted lexicographically
-// STD includes first
-#include <array>
-#include <map>
-#include <memory>
+Key modules and their purposes:
 
-// then, library includes
-#include <nihstro/shared_binary.h>
+* **`src/core/libraries/network/`**:
+  * P2P networking subsystem, PlayStation Network HLE translation layer (`np_manager`, `np_matching2`, `np_signaling`, `np_web_api`, and `net`).
+  * Connects game networking calls directly to Steamworks (`ISteamMatchmaking`, `ISteamNetworkingMessages`, `ISteamFriends`).
+* **`src/video_core/`**:
+  * Vulkan graphics backend, pipeline caching, staging buffer management, render resolution scaling, and FSR upscaling integration.
+* **`src/launcher/`**:
+  * Custom pre-game launcher UI built with SDL3 / ImGui (`jojo_launcher.cpp`).
+  * Settings persistence (`launcher_config.toml`), keybinding remapping, Discord RPC, and Trophy viewing.
+* **`src/emulator.cpp`**:
+  * Core emulator orchestration and in-memory defensive assembly patches for runtime stability.
 
-// finally, shadps4 includes
-#include "common/math_util.h"
-#include "common/vector_math.h"
+---
 
-// each major module is separated
-#include "video_core/pica.h"
-#include "video_core/video_core.h"
+## 📐 Coding Standards & Style
 
-namespace Example {
+* **Language Standard:** C++20 / C++23.
+* **Formatting:**
+  * 4 spaces indentation (no tabs).
+  * 100 character line limit where practical.
+  * Use C++ style comments (`//`).
+* **Memory & Safety:**
+  * Prefer modern RAII (`std::unique_ptr`, `std::shared_ptr`, `std::vector`) over raw manual memory management.
+  * When communicating with PS4 guest memory, always ensure structures are placed in valid mapped guest memory (`FlexibleMemory` / `SystemManaged`) using the `PS4_SYSV_ABI` calling convention.
+* **Zero Copyrighted Assets:**
+  * **Never commit copyrighted game files** (`eboot.bin`, `.cpk`, `.xfbin`, copyrighted audio tracks, or commercial PS4 assets) to the repository.
 
-// Namespace contents are not indented
+---
 
-// Declare globals at the top (better yet, don't use globals at all!)
-int g_foo{}; // {} can be used to initialize types as 0, false, or nullptr
-char* g_some_pointer{}; // Pointer * and reference & stick to the type name, and make sure to initialize as nullptr!
+## 🧪 Testing Your Changes
 
-/// A colorful enum.
-enum class SomeEnum {
-    Red,   ///< The color of fire.
-    Green, ///< The color of grass.
-    Blue,  ///< Not actually the color of water.
-};
+Before submitting a Pull Request:
+1. Ensure the project builds cleanly without errors or warnings in **Release** mode with MSVC / Clang-cl and Ninja:
+   ```powershell
+   cmake --build build --config Release
+   ```
+2. Verify that `JoJo EoH.exe` launches the pre-game launcher correctly.
+3. Test in-game booting and ensure online multiplayer hosting and lobby search function properly.
 
-/**
- * Very important struct that does a lot of stuff.
- * Note that the asterisks are indented by one space to align to the first line.
- */
-struct Position {
-    // Always initialize member variables!
-    int x{};
-    int y{};
-};
+---
 
-// Use "typename" rather than "class" here
-template <typename T>
-void FooBar() {
-    const std::string some_string{"prefer uniform initialization"};
+## 📜 Licensing
 
-    const std::array<int, 4> some_array{
-        5,
-        25,
-        7,
-        42,
-    };
-
-    if (note == the_space_after_the_if) {
-        CallAFunction();
-    } else {
-        // Use a space after the // when commenting
-    }
-
-    // Place a single space after the for loop semicolons, prefer pre-increment
-    for (int i = 0; i != 25; ++i) {
-        // This is how we write loops
-    }
-
-    DoStuff(this, function, call, takes, up, multiple,
-            lines, like, this);
-
-    if (this || condition_takes_up_multiple &&
-        lines && like && this || everything ||
-        alright || then) {
-
-        // Leave a blank space before the if block body if the condition was continued across
-        // several lines.
-    }
-
-    // No indentation for case labels
-    switch (var) {
-    case 1: {
-        const int case_var{var + 3};
-        DoSomething(case_var);
-        break;
-    }
-    case 3:
-        DoSomething(var);
-        return;
-    default:
-        // Yes, even break for the last case
-        break;
-    }
-}
-
-} // namespace Example
-```
+By contributing to this project, you agree that your contributions will be licensed under the **GNU General Public License v2.0 or later** (GPL-2.0-or-later).
